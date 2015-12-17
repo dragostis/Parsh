@@ -1,11 +1,15 @@
+require "./grammar"
+
 class Parser
+  include Grammar
+
   def initialize(stream)
     @stream = stream
     @progress = true
   end
 
-  def progress_=(progress)
-    @progress = progress
+  def progress
+    @progress = !@progress
   end
 
   def try(string)

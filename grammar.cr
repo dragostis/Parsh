@@ -39,9 +39,9 @@ module Grammar
   end
 
   macro present?(rule)
-    @progress = false
+    progress
     present = {{ rule }}
-    @progress = true
+    progress
 
     present
   end
