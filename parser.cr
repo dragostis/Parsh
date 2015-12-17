@@ -13,6 +13,6 @@ class Parser
   end
 
   def parse
-    root
+    root && @stream.empty?
   end
 end
