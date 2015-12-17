@@ -38,6 +38,14 @@ module Grammar
     true
   end
 
+  macro present?(rule)
+    @progress = false
+    present = {{ rule }}
+    @progress = true
+
+    present
+  end
+
   macro unroll(call)
     {% if call.is_a? StringLiteral %}
       exact {{ call }}
@@ -54,6 +62,10 @@ module Grammar
         {% end %}
       {% elsif call.name.stringify == "opt" %}
         optional unroll({{ call.receiver }})
+      {% elsif call.name.stringify == "pres?" %}
+        present? unroll({{ call.receiver }})
+      {% elsif call.name.stringify == "abs?" %}
+        !present? unroll({{ call.receiver }})
       {% else %}
         {{ call }}
       {% end %}
