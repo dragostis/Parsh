@@ -33,6 +33,11 @@ module Grammar
     end
   end
 
+  macro optional(rule)
+    {{ rule }}
+    true
+  end
+
   macro unroll(call)
     {% if call.is_a? StringLiteral %}
       exact {{ call }}
@@ -47,6 +52,8 @@ module Grammar
         {% elsif call.args.size == 2 %}
           repeat unroll({{ call.receiver }}), {{ call.args[0] }}, {{ call.args[1] }}
         {% end %}
+      {% elsif call.name.stringify == "opt" %}
+        optional unroll({{ call.receiver }})
       {% else %}
         {{ call }}
       {% end %}
