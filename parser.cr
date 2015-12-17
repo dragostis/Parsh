@@ -1,6 +1,11 @@
 class Parser
   def initialize(stream)
     @stream = stream
+    @progress = true
+  end
+
+  def progress_=(progress)
+    @progress = progress
   end
 
   def try(string)
@@ -8,7 +13,7 @@ class Parser
 
     return false unless @stream.starts_with? string
 
-    @stream = @stream[string.size..-1]
+    @stream = @stream[string.size..-1] if @progress
     true
   end
 
