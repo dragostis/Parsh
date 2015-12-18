@@ -241,7 +241,7 @@ module Grammar
   end
 
   macro rule(assignment)
-    {% if assignment.value.is_a? Call %}
+    {% if assignment.value.is_a? Call || assignment.value.is_a? Var %}
       def {{ assignment.target }}
         result = unroll {{ assignment.value }}
 
