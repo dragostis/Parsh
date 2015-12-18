@@ -22,6 +22,12 @@ class Parser
   end
 
   def parse
-    root && @stream.empty?
+    current = root
+
+    if @stream.empty?
+      current
+    else
+      Grammar::Absent
+    end
   end
 end

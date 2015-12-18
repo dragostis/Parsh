@@ -1,73 +1,215 @@
 module Grammar
-  macro exact(string, capture = false)
-    try {{ string }}
+  abstract class Node
   end
 
-  macro composed(left, right)
-    if {{ left }}
-      {{ right }}
-    else
-      false
+  class NoneType < Node
+  end
+
+  class AbsentType < Node
+  end
+
+  class PresentType < Node
+  end
+
+  class Base < Node
+    getter :value
+
+    def initialize(@value)
+    end
+
+    def +(other)
+      Base.new(@value + other.value)
     end
   end
 
-  macro choice(left, right)
-    if {{ left }}
-      true
-    else
-      {{ right }}
+  class Repetition < Node
+    getter :nodes
+
+    def initialize(@nodes)
     end
   end
 
-  macro repeat(rule, minimum, maximum = 0)
+  None = NoneType.new
+  Absent = AbsentType.new
+  Present = PresentType.new
+
+  macro exact(string, capture)
+     if try {{ string }}
+       {% if capture %}
+         Base.new {{ string }}
+       {% else %}
+         Present
+       {% end %}
+     else
+       Absent
+     end
+  end
+
+  macro composed(left, right, capture)
+    %left = {{ left }}
+
+    if %left != Absent
+      %right = {{ right }}; p %left; p %right
+
+      if %right != Absent
+        {% if capture %}
+          if %left.is_a? Base && %right.is_a? Base
+            %left + %right
+          else
+            Absent
+          end
+        {% else %}
+          if %left == Present && %right == Present
+            Present
+          else
+            if %left.is_a? Array(Node)
+              %left << %right
+              %left
+            else
+              [%left, %right]
+            end
+          end
+        {% end %}
+      else
+        Absent
+      end
+    else
+      Absent
+    end
+  end
+
+  macro choice(left, right, capture)
+    %left = {{ left }}
+
+    if %left != Absent
+      {% if capture %}
+        %left
+      {% else %}
+        if %left != Present
+          %left
+        else
+          Present
+        end
+      {% end %}
+    else
+      {% if capture %}
+        {{ right }}
+      {% else %}
+        %right = {{ right }}
+
+        if %right == Absent
+          Absent
+        elsif %right == Present
+          Present
+        else
+          %right
+        end
+      {% end %}
+    end
+  end
+
+  macro repeat(rule, capture, minimum, maximum = 0)
     %times = 0
+    {% if capture %}
+    %results = [] of Node
+    {% end %}
 
-    while {{ rule }}
+    %current = {{ rule }}
+
+    while %current != Absent
       %times += 1
+      {% if capture %}
+      %results << %current
+      {% end %}
+
+      %current = {{ rule }}
     end
 
     if {{ maximum }} == 0
-      {{ minimum }} <= %times
+      if {{ minimum }} <= %times
+        {% if capture %}
+          Repetition.new %results
+        {% else %}
+          Present
+        {% end %}
+      else
+        Absent
+      end
     else
-      {{ minimum }} <= %times && %times <= {{ maximum }}
+      if {{ minimum }} <= %times && %times <= {{ maximum }}
+        {% if capture %}
+          Repetition.new %results
+        {% else %}
+          Present
+        {% end %}
+      else
+        Absent
+      end
     end
   end
 
-  macro optional(rule)
-    {{ rule }}
-    true
+  macro optional(rule, capture)
+    %result = {{ rule }}
+
+    {% if capture %}
+      if %result == Absent
+        None
+      else
+        %result
+      end
+    {% else %}
+      Present
+    {% end %}
   end
 
-  macro present?(rule)
+  macro present?(rule, capture)
     progress
-    present = {{ rule }}
+    %present = {{ rule }}
     progress
 
-    present
+    if %present == Absent
+      Absent
+    else
+      Present
+    end
+  end
+
+  macro absent?(rule, capture)
+    progress
+    %present = {{ rule }}
+    progress
+
+    if %present == Absent
+      Present
+    else
+      Absent
+    end
   end
 
   macro unroll(call, capture = false)
     {% if call.is_a? StringLiteral %}
-      exact {{ call }}, capture
+      exact {{ call }}, {{ capture }}
     {% elsif call.is_a? Call %}
       {% if call.name.stringify == "&" %}
-        composed unroll({{ call.receiver }}), unroll({{ call.args[0] }})
+        composed unroll({{ call.receiver }}, {{ capture }}),
+                 unroll({{ call.args[0] }}, {{ capture }}), {{ capture }}
       {% elsif call.name.stringify == "|" %}
-        choice unroll({{ call.receiver }}), unroll({{ call.args[0] }})
+        choice unroll({{ call.receiver }}, {{ capture }}),
+               unroll({{ call.args[0] }}, {{ capture }}), {{ capture }}
       {% elsif call.name.stringify == "[]" %}
         {% if call.args.size == 1 %}
-          repeat unroll({{ call.receiver }}), {{ call.args[0] }}
+          repeat unroll({{ call.receiver }}, {{ capture }}), {{ capture }}, {{ call.args[0] }}
         {% elsif call.args.size == 2 %}
-          repeat unroll({{ call.receiver }}), {{ call.args[0] }}, {{ call.args[1] }}
+          repeat unroll({{ call.receiver }}, {{ capture }}), {{ capture }}, {{ call.args[0] }}, {{ call.args[1] }}
         {% end %}
       {% elsif call.name.stringify == "opt" %}
-        optional unroll({{ call.receiver }})
+        optional unroll({{ call.receiver }}, {{ capture }}), {{ capture }}
       {% elsif call.name.stringify == "pres?" %}
-        present? unroll({{ call.receiver }})
+        present? unroll({{ call.receiver }}, {{ capture }}), {{ capture }}
       {% elsif call.name.stringify == "abs?" %}
-        !present? unroll({{ call.receiver }})
+        absent? unroll({{ call.receiver }}, {{ capture }}), {{ capture }}
       {% elsif call.name.stringify == "cap" %}
-        !present? unroll({{ call.receiver }})
+        unroll {{ call.receiver }}, true
       {% else %}
         {{ call }}
       {% end %}
@@ -86,7 +228,7 @@ module Grammar
 
         {% if assignment.value[1].value.receiver.stringify == "Node" %}
           {% if assignment.value[1].value.name.stringify == "new" %}
-            class {{ klass }}
+            class {{ klass }} < Node
               {% for arg in args %}
                 getter {{ arg }}
               {% end %}
@@ -98,7 +240,13 @@ module Grammar
             end
 
             def {{ assignment.target }}
-              unroll {{ assignment.value[0] }}, true
+              result = unroll {{ assignment.value[0] }}
+
+              # if result == Absent
+              #   Absent
+              # else
+              #   {{ klass }}.new
+              # end
             end
           {% end %}
         {% end %}
