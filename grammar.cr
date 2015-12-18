@@ -2,15 +2,6 @@ module Grammar
   abstract class Node
   end
 
-  class NoneType < Node
-  end
-
-  class AbsentType < Node
-  end
-
-  class PresentType < Node
-  end
-
   class Base < Node
     getter :value
 
@@ -26,6 +17,21 @@ module Grammar
     getter :nodes
 
     def initialize(@nodes)
+    end
+  end
+
+  class NoneType < Base
+    def initialize
+      @value = ""
+    end
+  end
+
+  class AbsentType < Node
+  end
+
+  class PresentType < Base
+    def initialize
+      @value = ""
     end
   end
 
@@ -49,7 +55,7 @@ module Grammar
     %left = {{ left }}
 
     if %left != Absent
-      %right = {{ right }}; p %left; p %right
+      %right = {{ right }}
 
       if %right != Absent
         {% if capture %}
@@ -63,7 +69,12 @@ module Grammar
             Present
           else
             if %left.is_a? Array(Node)
-              %left << %right
+              if %right.is_a? Array(Node)
+                %right.each { |rule| %left << rule }
+              else
+                %left << %right
+              end
+
               %left
             else
               [%left, %right]
@@ -111,15 +122,20 @@ module Grammar
   macro repeat(rule, capture, minimum, maximum = 0)
     %times = 0
     {% if capture %}
-    %results = [] of Node
+      %result = Base.new ""
+    {% else %}
+      %results = [] of Node
     {% end %}
 
     %current = {{ rule }}
 
     while %current != Absent
       %times += 1
+
       {% if capture %}
-      %results << %current
+        %result = %result + %current if %current.is_a? Base
+      {% else %}
+        %results << %current if %current != Present
       {% end %}
 
       %current = {{ rule }}
@@ -128,9 +144,13 @@ module Grammar
     if {{ maximum }} == 0
       if {{ minimum }} <= %times
         {% if capture %}
-          Repetition.new %results
+          %result
         {% else %}
-          Present
+          if %results.empty?
+            Present
+          else
+            %results
+          end
         {% end %}
       else
         Absent
@@ -138,9 +158,13 @@ module Grammar
     else
       if {{ minimum }} <= %times && %times <= {{ maximum }}
         {% if capture %}
-          Repetition.new %results
+          %result
         {% else %}
-          Present
+          if %results.empty?
+            Present
+          else
+            %results
+          end
         {% end %}
       else
         Absent
@@ -158,7 +182,7 @@ module Grammar
         %result
       end
     {% else %}
-      Present
+      %result
     {% end %}
   end
 
@@ -220,7 +244,13 @@ module Grammar
     {% for assignment in assignments.body.expressions %}
       {% if assignment.value.is_a? Call %}
         def {{ assignment.target }}
-          unroll {{ assignment.value }}
+          result = unroll {{ assignment.value }}
+
+          if result.is_a? Array(Node)
+            result.reject! &.is_a?(PresentType)
+          end
+
+          result
         end
       {% else %}
         {% klass = assignment.value[1].target %}
@@ -240,13 +270,21 @@ module Grammar
             end
 
             def {{ assignment.target }}
-              result = unroll {{ assignment.value[0] }}
+              results = unroll {{ assignment.value[0] }}
 
-              # if result == Absent
-              #   Absent
-              # else
-              #   {{ klass }}.new
-              # end
+              if results.is_a? Array(Node)
+                results.reject! &.is_a?(PresentType)
+
+                {{ klass }}.new(
+                  results[0]
+
+                  {% for i in 1...args.size %}
+                    , results[{{ i }}]
+                  {% end %}
+                )
+              else
+                Absent
+              end
             end
           {% end %}
         {% end %}
