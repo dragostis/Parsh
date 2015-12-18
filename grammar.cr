@@ -1,5 +1,5 @@
 module Grammar
-  macro exact(string)
+  macro exact(string, capture = false)
     try {{ string }}
   end
 
@@ -46,9 +46,9 @@ module Grammar
     present
   end
 
-  macro unroll(call)
+  macro unroll(call, capture = false)
     {% if call.is_a? StringLiteral %}
-      exact {{ call }}
+      exact {{ call }}, capture
     {% elsif call.is_a? Call %}
       {% if call.name.stringify == "&" %}
         composed unroll({{ call.receiver }}), unroll({{ call.args[0] }})
@@ -66,6 +66,8 @@ module Grammar
         present? unroll({{ call.receiver }})
       {% elsif call.name.stringify == "abs?" %}
         !present? unroll({{ call.receiver }})
+      {% elsif call.name.stringify == "cap" %}
+        !present? unroll({{ call.receiver }})
       {% else %}
         {{ call }}
       {% end %}
@@ -74,9 +76,33 @@ module Grammar
 
   macro rules(&assignments)
     {% for assignment in assignments.body.expressions %}
-      def {{ assignment.target }}
-        unroll {{ assignment.value }}
-      end
+      {% if assignment.value.is_a? Call %}
+        def {{ assignment.target }}
+          unroll {{ assignment.value }}
+        end
+      {% else %}
+        {% klass = assignment.value[1].target %}
+        {% args = assignment.value[1].value.args %}
+
+        {% if assignment.value[1].value.receiver.stringify == "Node" %}
+          {% if assignment.value[1].value.name.stringify == "new" %}
+            class {{ klass }}
+              {% for arg in args %}
+                getter {{ arg }}
+              {% end %}
+
+              def initialize(
+                {{ args.map { |arg| ("@" + arg.id.stringify).id }.argify }}
+              )
+              end
+            end
+
+            def {{ assignment.target }}
+              unroll {{ assignment.value[0] }}, true
+            end
+          {% end %}
+        {% end %}
+      {% end %}
     {% end %}
   end
 end
