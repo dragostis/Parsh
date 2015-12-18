@@ -240,54 +240,62 @@ module Grammar
     {% end %}
   end
 
-  macro rules(&assignments)
-    {% for assignment in assignments.body.expressions %}
-      {% if assignment.value.is_a? Call %}
-        def {{ assignment.target }}
-          result = unroll {{ assignment.value }}
+  macro rule(assignment)
+    {% if assignment.value.is_a? Call %}
+      def {{ assignment.target }}
+        result = unroll {{ assignment.value }}
 
-          if result.is_a? Array(Node)
-            result.reject! &.is_a?(PresentType)
+        if result.is_a? Array(Node)
+          result.reject! &.is_a?(PresentType)
+        end
+
+        result
+      end
+    {% elsif assignment.is_a? Assign %}
+      {% klass = assignment.value[1].target %}
+      {% args = assignment.value[1].value.args %}
+
+      {% if assignment.value[1].value.receiver.stringify == "Node" %}
+        {% if assignment.value[1].value.name.stringify == "new" %}
+          class {{ klass }} < Node
+            {% for arg in args %}
+              getter {{ arg }}
+            {% end %}
+
+            def initialize(
+              {{ args.map { |arg| ("@" + arg.id.stringify).id }.argify }}
+            )
+            end
           end
 
-          result
-        end
-      {% else %}
-        {% klass = assignment.value[1].target %}
-        {% args = assignment.value[1].value.args %}
+          def {{ assignment.target }}
+            results = unroll {{ assignment.value[0] }}
 
-        {% if assignment.value[1].value.receiver.stringify == "Node" %}
-          {% if assignment.value[1].value.name.stringify == "new" %}
-            class {{ klass }} < Node
-              {% for arg in args %}
-                getter {{ arg }}
-              {% end %}
+            if results.is_a? Array(Node)
+              results.reject! &.is_a?(PresentType)
 
-              def initialize(
-                {{ args.map { |arg| ("@" + arg.id.stringify).id }.argify }}
+              {{ klass }}.new(
+                results[0]
+
+                {% for i in 1...args.size %}
+                  , results[{{ i }}]
+                {% end %}
               )
-              end
+            else
+              Absent
             end
-
-            def {{ assignment.target }}
-              results = unroll {{ assignment.value[0] }}
-
-              if results.is_a? Array(Node)
-                results.reject! &.is_a?(PresentType)
-
-                {{ klass }}.new(
-                  results[0]
-
-                  {% for i in 1...args.size %}
-                    , results[{{ i }}]
-                  {% end %}
-                )
-              else
-                Absent
-              end
-            end
-          {% end %}
+          end
         {% end %}
+      {% end %}
+    {% end %}
+  end
+
+  macro rules(&assignments)
+    {% if assignments.body.is_a? Assign %}
+      rule {{ assignments.body }}
+    {% elsif assignments.body.is_a? Expressions %}
+      {% for assignment in assignments.body.expressions %}
+        rule {{ assignment }}
       {% end %}
     {% end %}
   end
