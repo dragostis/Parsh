@@ -20,8 +20,6 @@ class Parser
   end
 
   def try(string)
-    puts "Parsing: #{string}"
-
     @stream.matches? string, @progress
   end
 
