@@ -123,7 +123,17 @@ describe "Grammar" do
         ]
       end
 
-      it "captures repeated strings" do
+      it "doesn't capture repeated strings 0 times" do
+        parses :capture_repeated, ""
+      end
+
+      it "captures repeated strings once" do
+        captures :capture_repeated, "a", [
+          Grammar::Base.new("a")
+        ]
+      end
+
+      it "captures repeated strings twice" do
         captures :capture_repeated, "aa", [
           Grammar::Base.new("a"),
           Grammar::Base.new("a")

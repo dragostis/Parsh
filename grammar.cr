@@ -1,5 +1,10 @@
 module Grammar
   abstract class Node
+    macro inherited
+      def ==(other)
+        other.is_a? {{ @type.name }}
+      end
+    end
   end
 
   class Base < Node
@@ -11,12 +16,28 @@ module Grammar
     def +(other)
       Base.new(@value + other.value)
     end
+
+    def ==(other)
+      if other.is_a? Base
+        @value == other.value
+      else
+        false
+      end
+    end
   end
 
   class Repetition < Node
     getter :nodes
 
     def initialize(@nodes)
+    end
+
+    def ==(other)
+      if other.is_a? Repetition
+        @nodes == other.nodes
+      else
+        false
+      end
     end
   end
 
