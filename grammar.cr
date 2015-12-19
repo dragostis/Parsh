@@ -279,21 +279,29 @@ module Grammar
           end
 
           def {{ assignment.target }}
-            results = unroll {{ assignment.value[0] }}
+            %results = unroll {{ assignment.value[0] }}
 
-            if results.is_a? Array(Node)
-              results.reject! &.is_a?(PresentType)
+            {% if args.size > 1 %}
+              if %results.is_a? Array(Node)
+                %results.reject! &.is_a?(PresentType)
 
-              {{ klass }}.new(
-                results[0]
+                {{ klass }}.new(
+                  %results[0]
 
-                {% for i in 1...args.size %}
-                  , results[{{ i }}]
-                {% end %}
-              )
-            else
-              Absent
-            end
+                  {% for i in 1...args.size %}
+                    , %results[{{ i }}]
+                  {% end %}
+                )
+              else
+                Absent
+              end
+            {% else %}
+              if %results != Absent
+                {{ klass }}.new %results
+              else
+                Absent
+              end
+            {% end %}
           end
         {% end %}
       {% end %}
