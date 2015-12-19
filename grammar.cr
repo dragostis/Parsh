@@ -52,6 +52,7 @@ module Grammar
   end
 
   macro composed(left, right, capture)
+    %index = stream_index
     %left = {{ left }}
 
     if %left != Absent
@@ -62,6 +63,7 @@ module Grammar
           if %left.is_a? Base && %right.is_a? Base
             %left + %right
           else
+            revert %index
             Absent
           end
         {% else %}
@@ -79,14 +81,17 @@ module Grammar
             elsif %left.is_a? Node && %right.is_a? Node
               [%left, %right]
             else
+              revert %index
               Absent
             end
           end
         {% end %}
       else
+        revert %index
         Absent
       end
     else
+      revert %index
       Absent
     end
   end
@@ -122,6 +127,7 @@ module Grammar
   end
 
   macro repeat(rule, capture, minimum, maximum = 0)
+    %index = stream_index
     %times = 0
     {% if capture %}
       %result = Base.new ""
@@ -155,6 +161,7 @@ module Grammar
           end
         {% end %}
       else
+        revert %index
         Absent
       end
     else
@@ -169,6 +176,7 @@ module Grammar
           end
         {% end %}
       else
+        revert %index
         Absent
       end
     end

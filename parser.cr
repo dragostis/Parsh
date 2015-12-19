@@ -3,8 +3,7 @@ require "./grammar"
 class Parser
   include Grammar
 
-  def initialize(stream)
-    @stream = stream
+  def initialize(@stream)
     @progress = true
   end
 
@@ -12,13 +11,18 @@ class Parser
     @progress = !@progress
   end
 
+  def stream_index
+    @stream.index
+  end
+
+  def revert(index)
+    @stream.seek index
+  end
+
   def try(string)
-    puts "parsing \"#{string}\""
+    puts "Parsing: #{string}"
 
-    return false unless @stream.starts_with? string
-
-    @stream = @stream[string.size..-1] if @progress
-    true
+    @stream.matches? string, @progress
   end
 
   def parse
