@@ -76,8 +76,10 @@ module Grammar
               end
 
               %left
-            else
+            elsif %left.is_a? Node && %right.is_a? Node
               [%left, %right]
+            else
+              Absent
             end
           end
         {% end %}
@@ -182,7 +184,7 @@ module Grammar
         %result
       end
     {% else %}
-      %result
+      Present
     {% end %}
   end
 
