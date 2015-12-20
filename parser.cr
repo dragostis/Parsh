@@ -29,7 +29,9 @@ class Parser
     if @stream.empty?
       current
     else
-      Grammar::Absent
+      index = stream_index
+
+      Grammar::Absent.new index, @stream.size - index
     end
   end
 end

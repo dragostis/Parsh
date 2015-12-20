@@ -8,6 +8,10 @@ class StringStream
   def seek(@index)
   end
 
+  def size
+    @string.size
+  end
+
   def matches?(string, progress = true)
     size = @string.size
 

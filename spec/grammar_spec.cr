@@ -106,20 +106,20 @@ describe "Grammar" do
 
     describe "captures" do
       it "captures one string" do
-        captures :capture_one, "a", Grammar::Base.new "a"
+        captures :capture_one, "a", Grammar::Base.new "a", 0, 1
       end
 
       it "captures two strings" do
         captures :capture_two, "ab", [
-          Grammar::Base.new("a"),
-          Grammar::Base.new("b")
+          Grammar::Base.new("a", 0, 1),
+          Grammar::Base.new("b", 1, 1)
         ]
       end
 
       it "captures two strings with gap" do
         captures :capture_two_gap, "abc", [
-          Grammar::Base.new("a"),
-          Grammar::Base.new("c")
+          Grammar::Base.new("a", 0, 1),
+          Grammar::Base.new("c", 2, 1)
         ]
       end
 
@@ -129,14 +129,14 @@ describe "Grammar" do
 
       it "captures repeated strings once" do
         captures :capture_repeated, "a", [
-          Grammar::Base.new("a")
+          Grammar::Base.new("a", 0, 1)
         ]
       end
 
       it "captures repeated strings twice" do
         captures :capture_repeated, "aa", [
-          Grammar::Base.new("a"),
-          Grammar::Base.new("a")
+          Grammar::Base.new("a", 0, 1),
+          Grammar::Base.new("a", 1, 1)
         ]
       end
 
@@ -146,8 +146,8 @@ describe "Grammar" do
         foo.is_a?(SpecParser::Foo).should be_true
 
         if foo.is_a? SpecParser::Foo
-          foo.a.should eq Grammar::Base.new "a"
-          foo.c.should eq Grammar::Base.new "c"
+          foo.a.should eq Grammar::Base.new "a", 0, 1
+          foo.c.should eq Grammar::Base.new "c", 2, 1
         end
       end
 
@@ -162,8 +162,8 @@ describe "Grammar" do
           foo.is_a?(SpecParser::Foo).should be_true
 
           if foo.is_a? SpecParser::Foo
-            foo.a.should eq Grammar::Base.new "a"
-            foo.c.should eq Grammar::Base.new "c"
+            foo.a.should eq Grammar::Base.new "a", 0, 1
+            foo.c.should eq Grammar::Base.new "c", 2, 1
           end
         end
       end
@@ -187,7 +187,7 @@ describe "Grammar" do
       end
 
       it "captures terminals" do
-        captures :terminal_cap, "a", Grammar::Base.new "a"
+        captures :terminal_cap, "a", Grammar::Base.new "a", 0, 1
       end
 
       it "parses empty terminals" do
@@ -200,7 +200,7 @@ describe "Grammar" do
 
       it "captures long terminals" do
         captures :long_terminal_cap, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-                 Grammar::Base.new "aaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                 Grammar::Base.new "aaaaaaaaaaaaaaaaaaaaaaaaaaaaa", 0, 29
       end
     end
 
@@ -218,7 +218,7 @@ describe "Grammar" do
       end
 
       it "captures composed rules" do
-        captures :composed_cap, "ab", Grammar::Base.new "ab"
+        captures :composed_cap, "ab", Grammar::Base.new "ab", 0, 2
       end
 
       it "parses long composed rules" do
@@ -226,7 +226,7 @@ describe "Grammar" do
       end
 
       it "captures long composed rules" do
-        captures :long_composed_cap, "abbbba", Grammar::Base.new "abbbba"
+        captures :long_composed_cap, "abbbba", Grammar::Base.new "abbbba", 0, 6
       end
     end
 
@@ -244,7 +244,7 @@ describe "Grammar" do
       end
 
       it "captures choices" do
-        captures :choice_cap, "a", Grammar::Base.new "a"
+        captures :choice_cap, "a", Grammar::Base.new "a", 0, 1
       end
 
       it "parses long choices" do
@@ -252,7 +252,7 @@ describe "Grammar" do
       end
 
       it "captures long choices" do
-        captures :long_choice_cap, "g", Grammar::Base.new "g"
+        captures :long_choice_cap, "g", Grammar::Base.new "g", 0, 1
       end
     end
 
@@ -262,7 +262,7 @@ describe "Grammar" do
       end
 
       it "captures composed choices" do
-        captures :composed_choice_cap, "ac", Grammar::Base.new "ac"
+        captures :composed_choice_cap, "ac", Grammar::Base.new "ac", 0, 2
       end
 
       it "parses choice composed rules" do
@@ -270,7 +270,7 @@ describe "Grammar" do
       end
 
       it "captures choice composed rules" do
-        captures :choice_composed_cap, "bd", Grammar::Base.new "bd"
+        captures :choice_composed_cap, "bd", Grammar::Base.new "bd", 0, 2
       end
     end
 
@@ -296,7 +296,7 @@ describe "Grammar" do
       end
 
       it "capture repetitions" do
-        captures :repetition_cap, "aaa", Grammar::Base.new "aaa"
+        captures :repetition_cap, "aaa", Grammar::Base.new "aaa", 0, 3
       end
     end
 
@@ -306,7 +306,8 @@ describe "Grammar" do
       end
 
       it "captures composed repetitions" do
-        captures :composed_repetition_cap, "aaabbb", Grammar::Base.new "aaabbb"
+        captures :composed_repetition_cap, "aaabbb",
+                 Grammar::Base.new "aaabbb", 0, 6
       end
     end
 
@@ -320,11 +321,11 @@ describe "Grammar" do
       end
 
       it "captures negative optionals" do
-        captures :option_cap, "", Grammar::None.new
+        captures :option_cap, "", Grammar::None.new 0, 0
       end
 
       it "captures positive optionals" do
-        captures :option_cap, "a", Grammar::Base.new "a"
+        captures :option_cap, "a", Grammar::Base.new "a", 0, 1
       end
     end
 
@@ -354,7 +355,7 @@ describe "Grammar" do
       end
 
       it "captures present/absent rules" do
-        captures :present_absent_cap, "ab", Grammar::Base.new "ab"
+        captures :present_absent_cap, "ab", Grammar::Base.new "ab", 0, 2
       end
     end
   end

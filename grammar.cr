@@ -29,7 +29,7 @@ module Grammar
 
     def ==(other)
       if other.is_a? Base
-        @value == other.value
+        @value == other.value && @index == other.index && @size == other.size
       else
         false
       end
@@ -67,15 +67,17 @@ module Grammar
   end
 
   macro exact(string, capture)
-     if try {{ string }}
-       {% if capture %}
-         Base.new {{ string }}, stream_index, {{ string }}.size
-       {% else %}
-         Present.new stream_index, {{ string }}.size
-       {% end %}
-     else
-       Absent.new stream_index, {{ string }}.size
-     end
+    %index = stream_index
+
+    if try {{ string }}
+      {% if capture %}
+        Base.new {{ string }}, %index, {{ string }}.size
+      {% else %}
+        Present.new %index, {{ string }}.size
+      {% end %}
+    else
+      Absent.new %index, {{ string }}.size
+    end
   end
 
   macro composed(left, right, capture)
@@ -246,7 +248,7 @@ module Grammar
     if %present.is_a? Absent
       Absent.new stream_index, 0
     else
-      Present.new stream_index, %present.size
+      Present.new stream_index, 0
     end
   end
 
@@ -258,7 +260,7 @@ module Grammar
     if %present.is_a? Absent
       Present.new stream_index, 0
     else
-      Absent.new stream_index, %present.size
+      Absent.new stream_index, 0
     end
   end
 

@@ -3,6 +3,10 @@ require "../stream/*"
 
 macro spec_stream(klass, stream)
   describe "{{ klass }}" do
+    it "returns its size" do
+      {{ stream }}.size.should eq 7
+    end
+
     it "matches strings" do
       {{ stream }}.matches?("abc").should be_true
     end
