@@ -1,5 +1,11 @@
 module Grammar
   abstract class Node
+    getter :index
+    getter :size
+
+    def initialize(@index = 0, @size = 0)
+    end
+
     macro inherited
       def ==(other)
         other.is_a? {{ @type.name }}
@@ -10,11 +16,15 @@ module Grammar
   class Base < Node
     getter :value
 
-    def initialize(@value)
+    def initialize(@value, @index = 0, @size = 0)
     end
 
     def +(other)
-      Base.new(@value + other.value)
+      Base.new(
+        @value + other.value,
+        [@index, other.index].min,
+        @size + other.size
+      )
     end
 
     def ==(other)
@@ -29,7 +39,7 @@ module Grammar
   class Repetition < Node
     getter :nodes
 
-    def initialize(@nodes)
+    def initialize(@nodes, @index = 0, @size = 0)
     end
 
     def ==(other)
@@ -41,34 +51,30 @@ module Grammar
     end
   end
 
-  class NoneType < Base
-    def initialize
+  class None < Base
+    def initialize(@index = 0, @size = 0)
       @value = ""
     end
   end
 
-  class AbsentType < Node
+  class Absent < Node
   end
 
-  class PresentType < Base
-    def initialize
+  class Present < Base
+    def initialize(@index = 0, @size = 0)
       @value = ""
     end
   end
-
-  None = NoneType.new
-  Absent = AbsentType.new
-  Present = PresentType.new
 
   macro exact(string, capture)
      if try {{ string }}
        {% if capture %}
-         Base.new {{ string }}
+         Base.new {{ string }}, stream_index, {{ string }}.size
        {% else %}
-         Present
+         Present.new stream_index, {{ string }}.size
        {% end %}
      else
-       Absent
+       Absent.new stream_index, {{ string }}.size
      end
   end
 
@@ -76,20 +82,23 @@ module Grammar
     %index = stream_index
     %left = {{ left }}
 
-    if %left != Absent
+    if !%left.is_a? Absent
       %right = {{ right }}
 
-      if %right != Absent
+      if !%right.is_a? Absent
         {% if capture %}
           if %left.is_a? Base && %right.is_a? Base
             %left + %right
           else
+            %new_index = stream_index
             revert %index
-            Absent
+
+            Absent.new %new_index, %new_index - %index
           end
         {% else %}
-          if %left == Present && %right == Present
-            Present
+          if %left.is_a? Present && %right.is_a? Present
+            %new_index = stream_index
+            Present.new %new_index, %new_index - %index
           else
             if %left.is_a? Array(Node)
               if %right.is_a? Array(Node)
@@ -102,32 +111,39 @@ module Grammar
             elsif %left.is_a? Node && %right.is_a? Node
               [%left, %right]
             else
+              %new_index = stream_index
               revert %index
-              Absent
+
+              Absent.new %new_index, %new_index - %index
             end
           end
         {% end %}
       else
+        %new_index = stream_index
         revert %index
-        Absent
+
+        Absent.new %new_index, %new_index - %index
       end
     else
+      %new_index = stream_index
       revert %index
-      Absent
+
+      Absent.new %new_index, %new_index - %index
     end
   end
 
   macro choice(left, right, capture)
+    %index = stream_index
     %left = {{ left }}
 
-    if %left != Absent
+    if !%left.is_a? Absent
       {% if capture %}
         %left
       {% else %}
-        if %left != Present
+        if !%left.is_a? Present
           %left
         else
-          Present
+          Present.new %index, %left.size
         end
       {% end %}
     else
@@ -136,10 +152,8 @@ module Grammar
       {% else %}
         %right = {{ right }}
 
-        if %right == Absent
-          Absent
-        elsif %right == Present
-          Present
+        if %right.is_a? Absent
+          Absent.new %index, 0
         else
           %right
         end
@@ -151,20 +165,20 @@ module Grammar
     %index = stream_index
     %times = 0
     {% if capture %}
-      %result = Base.new ""
+      %result = Base.new "", %index, 0
     {% else %}
       %results = [] of Node
     {% end %}
 
     %current = {{ rule }}
 
-    while %current != Absent
+    until %current.is_a? Absent
       %times += 1
 
       {% if capture %}
         %result = %result + %current if %current.is_a? Base
       {% else %}
-        %results << %current if %current != Present
+        %results << %current unless %current.is_a? Present
       {% end %}
 
       %current = {{ rule }}
@@ -176,14 +190,17 @@ module Grammar
           %result
         {% else %}
           if %results.empty?
-            Present
+            %new_index = stream_index
+            Present.new %new_index, %new_index - %index
           else
             %results
           end
         {% end %}
       else
+        %new_index = stream_index
         revert %index
-        Absent
+
+        Absent.new %new_index, %new_index - %index
       end
     else
       if {{ minimum }} <= %times && %times <= {{ maximum }}
@@ -191,29 +208,33 @@ module Grammar
           %result
         {% else %}
           if %results.empty?
-            Present
+            %new_index = stream_index
+            Present.new %new_index, %new_index - %index
           else
             %results
           end
         {% end %}
       else
+        %new_index = stream_index
         revert %index
-        Absent
+
+        Absent.new %new_index, %new_index - %index
       end
     end
   end
 
   macro optional(rule, capture)
+    %index = stream_index
     %result = {{ rule }}
 
     {% if capture %}
-      if %result == Absent
-        None
+      if %result.is_a? Absent
+        None.new %index, 0
       else
         %result
       end
     {% else %}
-      Present
+      Present.new %index, %result.size
     {% end %}
   end
 
@@ -222,10 +243,10 @@ module Grammar
     %present = {{ rule }}
     progress
 
-    if %present == Absent
-      Absent
+    if %present.is_a? Absent
+      Absent.new stream_index, 0
     else
-      Present
+      Present.new stream_index, %present.size
     end
   end
 
@@ -234,10 +255,10 @@ module Grammar
     %present = {{ rule }}
     progress
 
-    if %present == Absent
-      Present
+    if %present.is_a? Absent
+      Present.new stream_index, 0
     else
-      Absent
+      Absent.new stream_index, %present.size
     end
   end
 
@@ -277,7 +298,7 @@ module Grammar
         result = unroll {{ assignment.value }}
 
         if result.is_a? Array(Node)
-          result.reject! &.is_a?(PresentType)
+          result.reject! &.is_a?(Present)
         end
 
         result
@@ -294,7 +315,8 @@ module Grammar
             {% end %}
 
             def initialize(
-              {{ args.map { |arg| ("@" + arg.id.stringify).id }.argify }}
+              {{ args.map { |arg| ("@" + arg.id.stringify).id }.argify }},
+              @index, @size
             )
             end
           end
@@ -304,7 +326,10 @@ module Grammar
 
             {% if args.size > 1 %}
               if %results.is_a? Array(Node)
-                %results.reject! &.is_a?(PresentType)
+                %index = %results[0].index
+                %size = %results[-1].index + %results[-1].size - %index
+
+                %results.reject! &.is_a?(Present)
 
                 {{ klass }}.new(
                   %results[0]
@@ -312,15 +337,16 @@ module Grammar
                   {% for i in 1...args.size %}
                     , %results[{{ i }}]
                   {% end %}
+                  , %index, %size
                 )
               else
-                Absent
+                Absent.new %results.index, %results.size
               end
             {% else %}
-              if %results != Absent
-                {{ klass }}.new %results
+              if !%results.is_a? Absent
+                {{ klass }}.new %results, %results.index, %results.size
               else
-                Absent
+                %results
               end
             {% end %}
           end

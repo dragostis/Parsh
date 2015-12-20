@@ -72,7 +72,7 @@ macro parses(rule, string, parser = SpecParser)
 
   %result = %parser.{{ rule.id }}
 
-  %result.should_not eq Grammar::Absent
+  %result.should_not be_a Grammar::Absent
   %parser.empty?.should be_true
 end
 
@@ -97,7 +97,7 @@ end
 describe "Grammar" do
   describe "rules" do
     it "parses root" do
-      SpecParser.new(StringStream.new "b").parse.should_not eq Grammar::Absent
+      SpecParser.new(StringStream.new "b").parse.should_not be_a Grammar::Absent
     end
 
     it "parses one rule" do
@@ -320,7 +320,7 @@ describe "Grammar" do
       end
 
       it "captures negative optionals" do
-        captures :option_cap, "", Grammar::NoneType.new
+        captures :option_cap, "", Grammar::None.new
       end
 
       it "captures positive optionals" do
