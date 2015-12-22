@@ -185,7 +185,7 @@ describe "Grammar" do
       end
 
       it "fails terminals on wrong strings" do
-        fails :terminal, "b", Absent.new "a", 0, 1
+        fails :terminal, "b", Absent.new "\"a\"", 0, 1
       end
 
       it "fails terminals on longer strings" do
@@ -193,7 +193,7 @@ describe "Grammar" do
       end
 
       it "fails terminals on shorter strings" do
-        fails :terminal, "", Absent.new "a", 0, 1
+        fails :terminal, "", Absent.new "\"a\"", 0, 1
       end
 
       it "captures terminals" do
@@ -220,11 +220,11 @@ describe "Grammar" do
       end
 
       it "fails composed rule first part" do
-        fails :composed, "bb", Absent.new "a", 0, 1
+        fails :composed, "bb", Absent.new "\"a\"", 0, 1
       end
 
       it "fails composed rule second part" do
-        fails :composed, "ac", Absent.new "b", 1, 1
+        fails :composed, "ac", Absent.new "\"b\"", 1, 1
       end
 
       it "captures composed rules" do
@@ -250,7 +250,7 @@ describe "Grammar" do
       end
 
       it "fails choices" do
-        fails :choice, "c", Absent.new ["a", "b"], 0, 1
+        fails :choice, "c", Absent.new ["\"a\"", "\"b\""], 0, 1
       end
 
       it "captures choices" do
@@ -290,7 +290,7 @@ describe "Grammar" do
       end
 
       it "fails repetitions without max" do
-        fails :repetition_without_max, "a", Absent.new "a", 1, 1
+        fails :repetition_without_max, "a", Absent.new "\"a\"", 1, 1
       end
 
       it "parses repetitions with max" do
@@ -298,7 +298,7 @@ describe "Grammar" do
       end
 
       it "fails repetitions with max on lower bound" do
-        fails :repetition_with_max, "a", Absent.new "a", 1, 1
+        fails :repetition_with_max, "a", Absent.new "\"a\"", 1, 1
       end
 
       it "fails repetitions with max on higher bound" do
@@ -349,7 +349,7 @@ describe "Grammar" do
       end
 
       it "fails present rules" do
-        fails :present_fail, "a", Absent.new "b", 0, 1
+        fails :present_fail, "a", Absent.new "\"b\"", 0, 1
       end
 
       it "parses absent rules" do
@@ -361,7 +361,7 @@ describe "Grammar" do
       end
 
       it "fails absent rules" do
-        fails :absent_not_processed, "a", Unexpected.new "a", 0, 1
+        fails :absent_not_processed, "a", Unexpected.new "\"a\"", 0, 1
       end
 
       it "fails absent not processed" do
@@ -369,7 +369,7 @@ describe "Grammar" do
       end
 
       it "failes absent choices" do
-        fails :absent_choice, "a", Absent.new ["b", "not a"], 0, 1
+        fails :absent_choice, "a", Absent.new ["\"b\"", "not \"a\""], 0, 1
       end
 
       it "captures present/absent rules" do

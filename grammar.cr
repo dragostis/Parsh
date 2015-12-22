@@ -11,7 +11,7 @@ module Grammar
         Present.new %index, {{ string }}.size
       {% end %}
     else
-      Absent.new {{ string }}, %index, {{ string }}.size
+      Absent.new {{ string.stringify }}, %index, {{ string }}.size
     end
   end
 
@@ -163,7 +163,7 @@ module Grammar
       Present.new %present.index, 0
     else
       %range = %present.index..(%present.index+%present.size)
-      Unexpected.new read(%range), %present.index, %present.size
+      Unexpected.new "\"#{read(%range)}\"", %present.index, %present.size
     end
   end
 
