@@ -1,71 +1,6 @@
+require "./ast/*"
+
 module Grammar
-  abstract class Node
-    getter :index
-    getter :size
-
-    def initialize(@index = 0, @size = 0)
-    end
-
-    macro inherited
-      def ==(other)
-        other.is_a? {{ @type.name }}
-      end
-    end
-  end
-
-  class Base < Node
-    getter :value
-
-    def initialize(@value, @index = 0, @size = 0)
-    end
-
-    def +(other)
-      Base.new(
-        @value + other.value,
-        [@index, other.index].min,
-        @size + other.size
-      )
-    end
-
-    def ==(other)
-      if other.is_a? Base
-        @value == other.value && @index == other.index && @size == other.size
-      else
-        false
-      end
-    end
-  end
-
-  class Repetition < Node
-    getter :nodes
-
-    def initialize(@nodes, @index = 0, @size = 0)
-    end
-
-    def ==(other)
-      if other.is_a? Repetition
-        @nodes == other.nodes
-      else
-        false
-      end
-    end
-  end
-
-  class None < Base
-    def initialize(@index = 0, @size = 0)
-      @value = ""
-    end
-  end
-
-  class Absent < Node
-  end
-
-  class Present < Base
-    def initialize(@index = 0, @size = 0)
-      @value = ""
-    end
-  end
-
   macro exact(string, capture)
     %index = stream_index
 
@@ -76,7 +11,7 @@ module Grammar
         Present.new %index, {{ string }}.size
       {% end %}
     else
-      Absent.new %index, {{ string }}.size
+      Absent.new {{ string }}, %index, {{ string }}.size
     end
   end
 
@@ -84,18 +19,13 @@ module Grammar
     %index = stream_index
     %left = {{ left }}
 
-    if !%left.is_a? Absent
+    if !%left.is_a? Error
       %right = {{ right }}
 
-      if !%right.is_a? Absent
+      if !%right.is_a? Error
         {% if capture %}
           if %left.is_a? Base && %right.is_a? Base
             %left + %right
-          else
-            %new_index = stream_index
-            revert %index
-
-            Absent.new %new_index, %new_index - %index
           end
         {% else %}
           if %left.is_a? Present && %right.is_a? Present
@@ -110,27 +40,24 @@ module Grammar
               end
 
               %left
-            elsif %left.is_a? Node && %right.is_a? Node
-              [%left, %right]
-            else
-              %new_index = stream_index
-              revert %index
+            elsif %right.is_a? Array(Node)
+              %right.unshift %left
 
-              Absent.new %new_index, %new_index - %index
+              %right
+            else
+              [%left, %right]
             end
           end
         {% end %}
       else
-        %new_index = stream_index
         revert %index
 
-        Absent.new %new_index, %new_index - %index
+        %right
       end
     else
-      %new_index = stream_index
       revert %index
 
-      Absent.new %new_index, %new_index - %index
+      %left
     end
   end
 
@@ -138,7 +65,7 @@ module Grammar
     %index = stream_index
     %left = {{ left }}
 
-    if !%left.is_a? Absent
+    if !%left.is_a? Error
       {% if capture %}
         %left
       {% else %}
@@ -149,17 +76,13 @@ module Grammar
         end
       {% end %}
     else
-      {% if capture %}
-        {{ right }}
-      {% else %}
-        %right = {{ right }}
+      %right = {{ right }}
 
-        if %right.is_a? Absent
-          Absent.new %index, 0
-        else
-          %right
-        end
-      {% end %}
+      if %right.is_a? Error && %left.is_a? Error
+        %left | %right
+      else
+        %right
+      end
     end
   end
 
@@ -174,7 +97,7 @@ module Grammar
 
     %current = {{ rule }}
 
-    until %current.is_a? Absent
+    until %current.is_a? Error
       %times += 1
 
       {% if capture %}
@@ -183,45 +106,24 @@ module Grammar
         %results << %current unless %current.is_a? Present
       {% end %}
 
+      break if {{ maximum }} != 0 && %times == {{ maximum }}
+
       %current = {{ rule }}
     end
 
-    if {{ maximum }} == 0
-      if {{ minimum }} <= %times
-        {% if capture %}
-          %result
-        {% else %}
-          if %results.empty?
-            %new_index = stream_index
-            Present.new %new_index, %new_index - %index
-          else
-            %results
-          end
-        {% end %}
-      else
-        %new_index = stream_index
-        revert %index
-
-        Absent.new %new_index, %new_index - %index
-      end
+    if {{ minimum }} <= %times
+      {% if capture %}
+        %result
+      {% else %}
+        if %results.empty?
+          %new_index = stream_index
+          Present.new %new_index, %new_index - %index
+        else
+          %results
+        end
+      {% end %}
     else
-      if {{ minimum }} <= %times && %times <= {{ maximum }}
-        {% if capture %}
-          %result
-        {% else %}
-          if %results.empty?
-            %new_index = stream_index
-            Present.new %new_index, %new_index - %index
-          else
-            %results
-          end
-        {% end %}
-      else
-        %new_index = stream_index
-        revert %index
-
-        Absent.new %new_index, %new_index - %index
-      end
+      %current
     end
   end
 
@@ -230,7 +132,7 @@ module Grammar
     %result = {{ rule }}
 
     {% if capture %}
-      if %result.is_a? Absent
+      if %result.is_a? Error
         None.new %index, 0
       else
         %result
@@ -245,10 +147,10 @@ module Grammar
     %present = {{ rule }}
     progress
 
-    if %present.is_a? Absent
-      Absent.new stream_index, 0
+    if %present.is_a? Error
+      %present
     else
-      Present.new stream_index, 0
+      Present.new %present.index, 0
     end
   end
 
@@ -257,10 +159,11 @@ module Grammar
     %present = {{ rule }}
     progress
 
-    if %present.is_a? Absent
-      Present.new stream_index, 0
+    if %present.is_a? Error
+      Present.new %present.index, 0
     else
-      Absent.new stream_index, 0
+      %range = %present.index..(%present.index+%present.size)
+      Unexpected.new read(%range), %present.index, %present.size
     end
   end
 
@@ -342,10 +245,10 @@ module Grammar
                   , %index, %size
                 )
               else
-                Absent.new %results.index, %results.size
+                raise  "{{ klass.id }} needs {{ args.size.id }} captures."
               end
             {% else %}
-              if !%results.is_a? Absent
+              if !%results.is_a? Error
                 {{ klass }}.new %results, %results.index, %results.size
               else
                 %results

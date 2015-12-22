@@ -1,5 +1,6 @@
 require "spec"
 require "../grammar"
+require "../ast/*"
 require "../parser"
 require "../stream/string_stream"
 
@@ -56,7 +57,9 @@ class SpecParser < Parser
     present = "a".pres? & "a"
     present_not_processed = "a".pres?
     present_fail = "b".pres? & "a"
-    absent = "a".abs?
+    absent = "a".abs? & "b"
+    absent_not_processed = "a".abs?
+    absent_choice = "a".abs? | "b"
     present_absent_cap = ("a" & "b".pres? & "a".abs? & "b").cap
 
     root = "b"
@@ -72,16 +75,23 @@ macro parses(rule, string, parser = SpecParser)
 
   %result = %parser.{{ rule.id }}
 
-  %result.should_not be_a Grammar::Absent
+  %result.should_not be_a Error
   %parser.empty?.should be_true
 end
 
-macro fails(rule, string)
+macro fails(rule, string, error = nil)
   %parser = SpecParser.new StringStream.new {{ string }}
 
   %result = %parser.{{ rule.id }}
 
-  %failed = %result.is_a? Grammar::Absent || !%parser.empty?
+  %failed = !%parser.empty?
+
+  {% if error == nil %}
+    %failed ||= %result.is_a? Error
+  {% else %}
+    %failed = %result == {{ error }}
+  {% end %}
+
   %failed.should be_true
 end
 
@@ -97,7 +107,7 @@ end
 describe "Grammar" do
   describe "rules" do
     it "parses root" do
-      SpecParser.new(StringStream.new "b").parse.should_not be_a Grammar::Absent
+      SpecParser.new(StringStream.new "b").parse.should_not be_a Error
     end
 
     it "parses one rule" do
@@ -106,20 +116,20 @@ describe "Grammar" do
 
     describe "captures" do
       it "captures one string" do
-        captures :capture_one, "a", Grammar::Base.new "a", 0, 1
+        captures :capture_one, "a", Base.new "a", 0, 1
       end
 
       it "captures two strings" do
         captures :capture_two, "ab", [
-          Grammar::Base.new("a", 0, 1),
-          Grammar::Base.new("b", 1, 1)
+          Base.new("a", 0, 1),
+          Base.new("b", 1, 1)
         ]
       end
 
       it "captures two strings with gap" do
         captures :capture_two_gap, "abc", [
-          Grammar::Base.new("a", 0, 1),
-          Grammar::Base.new("c", 2, 1)
+          Base.new("a", 0, 1),
+          Base.new("c", 2, 1)
         ]
       end
 
@@ -129,14 +139,14 @@ describe "Grammar" do
 
       it "captures repeated strings once" do
         captures :capture_repeated, "a", [
-          Grammar::Base.new("a", 0, 1)
+          Base.new("a", 0, 1)
         ]
       end
 
       it "captures repeated strings twice" do
         captures :capture_repeated, "aa", [
-          Grammar::Base.new("a", 0, 1),
-          Grammar::Base.new("a", 1, 1)
+          Base.new("a", 0, 1),
+          Base.new("a", 1, 1)
         ]
       end
 
@@ -146,8 +156,8 @@ describe "Grammar" do
         foo.is_a?(SpecParser::Foo).should be_true
 
         if foo.is_a? SpecParser::Foo
-          foo.a.should eq Grammar::Base.new "a", 0, 1
-          foo.c.should eq Grammar::Base.new "c", 2, 1
+          foo.a.should eq Base.new "a", 0, 1
+          foo.c.should eq Base.new "c", 2, 1
         end
       end
 
@@ -162,8 +172,8 @@ describe "Grammar" do
           foo.is_a?(SpecParser::Foo).should be_true
 
           if foo.is_a? SpecParser::Foo
-            foo.a.should eq Grammar::Base.new "a", 0, 1
-            foo.c.should eq Grammar::Base.new "c", 2, 1
+            foo.a.should eq Base.new "a", 0, 1
+            foo.c.should eq Base.new "c", 2, 1
           end
         end
       end
@@ -175,7 +185,7 @@ describe "Grammar" do
       end
 
       it "fails terminals on wrong strings" do
-        fails :terminal, "b"
+        fails :terminal, "b", Absent.new "a", 0, 1
       end
 
       it "fails terminals on longer strings" do
@@ -183,11 +193,11 @@ describe "Grammar" do
       end
 
       it "fails terminals on shorter strings" do
-        fails :terminal, ""
+        fails :terminal, "", Absent.new "a", 0, 1
       end
 
       it "captures terminals" do
-        captures :terminal_cap, "a", Grammar::Base.new "a", 0, 1
+        captures :terminal_cap, "a", Base.new "a", 0, 1
       end
 
       it "parses empty terminals" do
@@ -200,7 +210,7 @@ describe "Grammar" do
 
       it "captures long terminals" do
         captures :long_terminal_cap, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-                 Grammar::Base.new "aaaaaaaaaaaaaaaaaaaaaaaaaaaaa", 0, 29
+                 Base.new "aaaaaaaaaaaaaaaaaaaaaaaaaaaaa", 0, 29
       end
     end
 
@@ -210,15 +220,15 @@ describe "Grammar" do
       end
 
       it "fails composed rule first part" do
-        fails :composed, "bb"
+        fails :composed, "bb", Absent.new "a", 0, 1
       end
 
       it "fails composed rule second part" do
-        fails :composed, "ac"
+        fails :composed, "ac", Absent.new "b", 1, 1
       end
 
       it "captures composed rules" do
-        captures :composed_cap, "ab", Grammar::Base.new "ab", 0, 2
+        captures :composed_cap, "ab", Base.new "ab", 0, 2
       end
 
       it "parses long composed rules" do
@@ -226,7 +236,7 @@ describe "Grammar" do
       end
 
       it "captures long composed rules" do
-        captures :long_composed_cap, "abbbba", Grammar::Base.new "abbbba", 0, 6
+        captures :long_composed_cap, "abbbba", Base.new "abbbba", 0, 6
       end
     end
 
@@ -240,11 +250,11 @@ describe "Grammar" do
       end
 
       it "fails choices" do
-        fails :choice, "c"
+        fails :choice, "c", Absent.new ["a", "b"], 0, 1
       end
 
       it "captures choices" do
-        captures :choice_cap, "a", Grammar::Base.new "a", 0, 1
+        captures :choice_cap, "a", Base.new "a", 0, 1
       end
 
       it "parses long choices" do
@@ -252,7 +262,7 @@ describe "Grammar" do
       end
 
       it "captures long choices" do
-        captures :long_choice_cap, "g", Grammar::Base.new "g", 0, 1
+        captures :long_choice_cap, "g", Base.new "g", 0, 1
       end
     end
 
@@ -262,7 +272,7 @@ describe "Grammar" do
       end
 
       it "captures composed choices" do
-        captures :composed_choice_cap, "ac", Grammar::Base.new "ac", 0, 2
+        captures :composed_choice_cap, "ac", Base.new "ac", 0, 2
       end
 
       it "parses choice composed rules" do
@@ -270,7 +280,7 @@ describe "Grammar" do
       end
 
       it "captures choice composed rules" do
-        captures :choice_composed_cap, "bd", Grammar::Base.new "bd", 0, 2
+        captures :choice_composed_cap, "bd", Base.new "bd", 0, 2
       end
     end
 
@@ -280,7 +290,7 @@ describe "Grammar" do
       end
 
       it "fails repetitions without max" do
-        fails :repetition_without_max, "a"
+        fails :repetition_without_max, "a", Absent.new "a", 1, 1
       end
 
       it "parses repetitions with max" do
@@ -288,7 +298,7 @@ describe "Grammar" do
       end
 
       it "fails repetitions with max on lower bound" do
-        fails :repetition_with_max, "a"
+        fails :repetition_with_max, "a", Absent.new "a", 1, 1
       end
 
       it "fails repetitions with max on higher bound" do
@@ -296,7 +306,7 @@ describe "Grammar" do
       end
 
       it "capture repetitions" do
-        captures :repetition_cap, "aaa", Grammar::Base.new "aaa", 0, 3
+        captures :repetition_cap, "aaa", Base.new "aaa", 0, 3
       end
     end
 
@@ -307,7 +317,7 @@ describe "Grammar" do
 
       it "captures composed repetitions" do
         captures :composed_repetition_cap, "aaabbb",
-                 Grammar::Base.new "aaabbb", 0, 6
+                 Base.new "aaabbb", 0, 6
       end
     end
 
@@ -321,11 +331,11 @@ describe "Grammar" do
       end
 
       it "captures negative optionals" do
-        captures :option_cap, "", Grammar::None.new 0, 0
+        captures :option_cap, "", None.new 0, 0
       end
 
       it "captures positive optionals" do
-        captures :option_cap, "a", Grammar::Base.new "a", 0, 1
+        captures :option_cap, "a", Base.new "a", 0, 1
       end
     end
 
@@ -339,23 +349,31 @@ describe "Grammar" do
       end
 
       it "fails present rules" do
-        fails :present_fail, "a"
+        fails :present_fail, "a", Absent.new "b", 0, 1
+      end
+
+      it "parses absent rules" do
+        parses :absent, "b"
       end
 
       it "parses absent empty string" do
-        parses :absent, ""
+        parses :absent_not_processed, ""
       end
 
       it "fails absent rules" do
-        fails :absent, "a"
+        fails :absent_not_processed, "a", Unexpected.new "a", 0, 1
       end
 
       it "fails absent not processed" do
-        fails :absent, "b"
+        fails :absent_not_processed, "c"
+      end
+
+      it "failes absent choices" do
+        fails :absent_choice, "a", Absent.new ["b", "not a"], 0, 1
       end
 
       it "captures present/absent rules" do
-        captures :present_absent_cap, "ab", Grammar::Base.new "ab", 0, 2
+        captures :present_absent_cap, "ab", Base.new "ab", 0, 2
       end
     end
   end

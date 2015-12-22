@@ -1,4 +1,5 @@
 require "./grammar"
+require "./ast/*"
 
 class Parser
   include Grammar
@@ -13,6 +14,10 @@ class Parser
 
   def stream_index
     @stream.index
+  end
+
+  def read(range)
+    @stream[range]
   end
 
   def revert(index)
@@ -30,8 +35,7 @@ class Parser
       current
     else
       index = stream_index
-
-      Grammar::Absent.new index, @stream.size - index
+      Absent.new "end of input", index, @stream.size - index
     end
   end
 end

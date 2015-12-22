@@ -12,6 +12,10 @@ class StringStream
     @string.size
   end
 
+  def [](range)
+    @string[range]
+  end
+
   def matches?(string, progress = true)
     size = @string.size
 
