@@ -15,8 +15,7 @@ class Absent < Error
       expected = @expected + other.expected
       Absent.new expected, @index, [@size, other.size].max
     elsif other.is_a? Unexpected
-      expected = @expected + ["not " + other.unexpected]
-      Absent.new expected, @index, [@size, other.size].max
+      self
     else
       other
     end

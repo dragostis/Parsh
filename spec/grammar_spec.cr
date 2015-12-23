@@ -70,6 +70,14 @@ class SpecParser < Parser
     atomic_present = "a".pres?.atom("rule")
     atomic_absent = "a".abs?.atom("rule")
 
+    quiet = terminal.quiet
+    quiet_terminal = "a".quiet
+    quiet_composed = ("a" & "b").quiet
+    quiet_choice = ("a" | "b").quiet
+    quiet_repetition = "a"[2].quiet
+    quiet_present = "a".pres?.quiet
+    quiet_absent = "a".abs?.quiet
+
     root = "b"
   end
 
@@ -377,7 +385,7 @@ describe "Grammar" do
       end
 
       it "failes absent choices" do
-        fails :absent_choice, "a", Absent.new ["\"b\"", "not \"a\""], 0, 1
+        fails :absent_choice, "a", Absent.new ["\"b\""], 0, 1
       end
 
       it "captures present/absent rules" do
@@ -412,6 +420,36 @@ describe "Grammar" do
 
       it "fails atomic absent rules" do
         fails :atomic_absent, "a", Absent.new "rule", 0, 1
+      end
+    end
+
+    describe "quiet rules" do
+      it "fails quiet rules" do
+        fails :quiet, "b", Unexpected.new "\"b\"", 0, 1
+      end
+
+      it "fails quite terminals" do
+        fails :quiet_terminal, "b", Unexpected.new "\"b\"", 0, 1
+      end
+
+      it "fails quiet composed rules" do
+        fails :quiet_composed, "ac", Unexpected.new "\"ac\"", 0, 2
+      end
+
+      it "fails quiet choices" do
+        fails :quiet_choice, "c", Unexpected.new "\"c\"", 0, 1
+      end
+
+      it "fails quiet repetitions" do
+        fails :quiet_repetition, "a", Unexpected.new "end of input", 1, 1
+      end
+
+      it "fails quiet present rules" do
+        fails :quiet_present, "b", Unexpected.new "\"b\"", 0, 1
+      end
+
+      it "fails quiet absent rules" do
+        fails :quiet_absent, "a", Unexpected.new "\"a\"", 0, 1
       end
     end
   end

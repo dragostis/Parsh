@@ -4,15 +4,11 @@ class Unexpected < Error
   getter :unexpected
 
   def initialize(@unexpected, @index, @size)
+    @unexpected = "end of input" if @unexpected == "\"\""
   end
 
   def |(other)
-    if other.is_a? Absent
-      expected = other.expected + ["not " + @unexpected]
-      Absent.new expected, @index, [@size, other.size].max
-    else
-      other
-    end
+    other
   end
 
   def ==(other)
