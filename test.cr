@@ -5,8 +5,9 @@ require "./grammar"
 class MyParser < Parser
   rules do
     # n = "hi" | "you" & ("q" | "p")[2, 5] & "he".pres? & "hey" & b
-    n = ("a".cap & "b" & ("e".pres? & "e" & "q".abs?).cap), Nar = Node.new(:baz, :bor)
-    root = "a".abs? | "b"
+    n = ("a".cap & "b" & ("a" & "b").cap), Nar = Node.new(:baz, :bor)
+    rule = "a"
+    root = rule.atom
   end
 end
 

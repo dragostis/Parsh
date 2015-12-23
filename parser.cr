@@ -31,7 +31,7 @@ class Parser
   def parse
     current = root
 
-    if @stream.empty?
+    if @stream.empty? || current.is_a? Error
       current
     else
       index = stream_index

@@ -62,6 +62,14 @@ class SpecParser < Parser
     absent_choice = "a".abs? | "b"
     present_absent_cap = ("a" & "b".pres? & "a".abs? & "b").cap
 
+    atomic_no_name = terminal.atom
+    atomic_terminal = "a".atom("rule")
+    atomic_composed = ("a" & "b").atom("rule")
+    atomic_choice = ("a" | "b").atom("rule")
+    atomic_repetition = "a"[2].atom("rule")
+    atomic_present = "a".pres?.atom("rule")
+    atomic_absent = "a".abs?.atom("rule")
+
     root = "b"
   end
 
@@ -374,6 +382,36 @@ describe "Grammar" do
 
       it "captures present/absent rules" do
         captures :present_absent_cap, "ab", Base.new "ab", 0, 2
+      end
+    end
+
+    describe "atomic rules" do
+      it "fails atomic rules with no name" do
+        fails :atomic_no_name, "b", Absent.new "terminal", 0, 1
+      end
+
+      it "fails atomic terminals" do
+        fails :atomic_terminal, "b", Absent.new "rule", 0, 1
+      end
+
+      it "fails atomic composed rules" do
+        fails :atomic_composed, "ac", Absent.new "rule", 0, 2
+      end
+
+      it "fails atomic choices" do
+        fails :atomic_choice, "c", Absent.new "rule", 0, 1
+      end
+
+      it "fails atomic repetitions" do
+        fails :atomic_repetition, "a", Absent.new "rule", 1, 1
+      end
+
+      it "fails atomic present rules" do
+        fails :atomic_present, "b", Absent.new "rule", 0, 1
+      end
+
+      it "fails atomic absent rules" do
+        fails :atomic_absent, "a", Absent.new "rule", 0, 1
       end
     end
   end

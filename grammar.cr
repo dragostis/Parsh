@@ -1,7 +1,7 @@
 require "./ast/*"
 
 module Grammar
-  macro exact(string, capture)
+  macro exact(string, capture, atom)
     %index = stream_index
 
     if try {{ string }}
@@ -11,11 +11,15 @@ module Grammar
         Present.new %index, {{ string }}.size
       {% end %}
     else
-      Absent.new {{ string.stringify }}, %index, {{ string }}.size
+      {% if atom == nil %}
+        Absent.new {{ string.stringify }}, %index, {{ string }}.size
+      {% else %}
+        Absent.new {{ atom }}, %index, {{ string }}.size
+      {% end %}
     end
   end
 
-  macro composed(left, right, capture)
+  macro composed(left, right, capture, atom)
     %index = stream_index
     %left = {{ left }}
 
@@ -24,9 +28,7 @@ module Grammar
 
       if !%right.is_a? Error
         {% if capture %}
-          if %left.is_a? Base && %right.is_a? Base
-            %left + %right
-          end
+          (%left as Base) + (%right as Base)
         {% else %}
           if %left.is_a? Present && %right.is_a? Present
             %new_index = stream_index
@@ -52,16 +54,24 @@ module Grammar
       else
         revert %index
 
-        %right
+        {% if atom == nil %}
+          %right
+        {% else %}
+          Absent.new {{ atom }}, %left.index, %left.size + %right.size
+        {% end %}
       end
     else
       revert %index
 
-      %left
+      {% if atom == nil %}
+        %left
+      {% else %}
+        Absent.new {{ atom }}, %left.index, %left.size
+      {% end %}
     end
   end
 
-  macro choice(left, right, capture)
+  macro choice(left, right, capture, atom)
     %index = stream_index
     %left = {{ left }}
 
@@ -78,15 +88,29 @@ module Grammar
     else
       %right = {{ right }}
 
-      if %right.is_a? Error && %left.is_a? Error
-        %left | %right
+      if %right.is_a? Error
+        {% if atom == nil %}
+          if %left.is_a? Error
+            %left | %right
+          else
+            %right
+          end
+        {% else %}
+          if %left.is_a? Error
+            %result = %left | %right
+            Absent.new {{ atom }}, %result.index, %result.size
+          else
+            Absent.new {{ atom }}, %right.index, %right.size
+          end
+
+        {% end %}
       else
         %right
       end
     end
   end
 
-  macro repeat(rule, capture, minimum, maximum = 0)
+  macro repeat(rule, capture, atom, minimum, maximum = 0)
     %index = stream_index
     %times = 0
     {% if capture %}
@@ -123,7 +147,15 @@ module Grammar
         end
       {% end %}
     else
-      %current
+      {% if atom == nil %}
+        %current
+      {% else %}
+        if %current.is_a? Error
+          Absent.new {{ atom }}, %current.index, %current.size
+        else
+          %current
+        end
+      {% end %}
     end
   end
 
@@ -142,19 +174,23 @@ module Grammar
     {% end %}
   end
 
-  macro present?(rule, capture)
+  macro present?(rule, capture, atom)
     progress
     %present = {{ rule }}
     progress
 
     if %present.is_a? Error
-      %present
+      {% if atom == nil %}
+        %present
+      {% else %}
+        Absent.new {{ atom }}, %present.index, %present.size
+      {% end %}
     else
       Present.new %present.index, 0
     end
   end
 
-  macro absent?(rule, capture)
+  macro absent?(rule, capture, atom)
     progress
     %present = {{ rule }}
     progress
@@ -162,37 +198,83 @@ module Grammar
     if %present.is_a? Error
       Present.new %present.index, 0
     else
-      %range = %present.index..(%present.index+%present.size)
-      Unexpected.new "\"#{read(%range)}\"", %present.index, %present.size
+      {% if atom == nil %}
+        %range = %present.index..(%present.index+%present.size)
+        Unexpected.new "\"#{read(%range)}\"", %present.index, %present.size
+      {% else %}
+        Absent.new {{ atom }}, %present.index, %present.size
+      {% end %}
     end
   end
 
-  macro unroll(call, capture = false)
+  macro atom(call, capture)
+    {% predefined = /^&|\||(\[\])|(opt)|(pres\?)|(abs\?)|(cap)|(atom)$/ %}
+
+    {% if call.receiver.is_a? Call %}
+      {% if call.receiver.name.stringify =~ predefined %}
+        {% if call.args.size == 1 %}
+          {% if call.args[0].is_a? StringLiteral %}
+            unroll {{ call.receiver }}, {{ capture }}, {{ call.args[0] }}
+          {% else %}
+            {% raise "atom call takes one String argument." %}
+          {% end %}
+        {% else %}
+          {% raise "atom call takes one String argument." %}
+        {% end %}
+      {% else %}
+        unroll {{ call.receiver }}, {{ capture }}, {{ call.receiver.name.stringify }}
+      {% end %}
+    {% else %}
+      {% if call.args.size == 1 %}
+        {% if call.args[0].is_a? StringLiteral %}
+          unroll {{ call.receiver }}, {{ capture }}, {{ call.args[0] }}
+        {% else %}
+          {% raise "atom call takes one String argument." %}
+        {% end %}
+      {% else %}
+        {% raise "atom call takes one String argument." %}
+      {% end %}
+    {% end %}
+  end
+
+  macro unroll(call, capture = false, atom = nil)
     {% if call.is_a? StringLiteral %}
-      exact {{ call }}, {{ capture }}
+      exact {{ call }}, {{ capture }}, {{ atom }}
     {% elsif call.is_a? Call %}
       {% if call.name.stringify == "&" %}
         composed unroll({{ call.receiver }}, {{ capture }}),
-                 unroll({{ call.args[0] }}, {{ capture }}), {{ capture }}
+                 unroll({{ call.args[0] }}, {{ capture }}), {{ capture }}, {{ atom }}
       {% elsif call.name.stringify == "|" %}
         choice unroll({{ call.receiver }}, {{ capture }}),
-               unroll({{ call.args[0] }}, {{ capture }}), {{ capture }}
+               unroll({{ call.args[0] }}, {{ capture }}), {{ capture }}, {{ atom }}
       {% elsif call.name.stringify == "[]" %}
         {% if call.args.size == 1 %}
-          repeat unroll({{ call.receiver }}, {{ capture }}), {{ capture }}, {{ call.args[0] }}
+          repeat unroll({{ call.receiver }}, {{ capture }}), {{ capture }}, {{ atom }}, {{ call.args[0] }}
         {% elsif call.args.size == 2 %}
-          repeat unroll({{ call.receiver }}, {{ capture }}), {{ capture }}, {{ call.args[0] }}, {{ call.args[1] }}
+          repeat unroll({{ call.receiver }}, {{ capture }}), {{ capture }}, {{ atom }}, {{ call.args[0] }}, {{ call.args[1] }}
         {% end %}
       {% elsif call.name.stringify == "opt" %}
         optional unroll({{ call.receiver }}, {{ capture }}), {{ capture }}
       {% elsif call.name.stringify == "pres?" %}
-        present? unroll({{ call.receiver }}, {{ capture }}), {{ capture }}
+        present? unroll({{ call.receiver }}, {{ capture }}), {{ capture }}, {{ atom }}
       {% elsif call.name.stringify == "abs?" %}
-        absent? unroll({{ call.receiver }}, {{ capture }}), {{ capture }}
+        absent? unroll({{ call.receiver }}, {{ capture }}), {{ capture }}, {{ atom }}
       {% elsif call.name.stringify == "cap" %}
         unroll {{ call.receiver }}, true
+      {% elsif call.name.stringify == "atom" %}
+        atom {{ call }}, {{ capture }}
       {% else %}
-        {{ call }}
+        {% if atom == nil %}
+          {{ call }}
+        {% else %}
+          %result = {{ call }}
+
+          if %result.is_a? Error
+            Absent.new {{ atom }}, %result.index, %result.size
+          else
+            %result
+          end
+        {% end %}
       {% end %}
     {% end %}
   end
