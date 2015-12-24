@@ -6,9 +6,9 @@ class MyParser < Parser
   rules do
     # n = "hi" | "you" & ("q" | "p")[2, 5] & "he".pres? & "hey" & b
     n = ("a".cap & "b" & ("a" & "b").cap), Nar = Node.new(:baz, :bor)
-    rule = "a"
-    root = rule.atom
+    rule = "a", Problem = Error.new "Problem. Big one."
+    root = rule
   end
 end
 
-p MyParser.new(StringStream.new "b").parse
+p MyParser.new(StringStream.new "a").parse

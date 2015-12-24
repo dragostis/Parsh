@@ -272,7 +272,7 @@ module Grammar
           {% if call.args[0].is_a? StringLiteral %}
             unroll {{ call.receiver }}, {{ capture }}, atom: {{ call.args[0] }}
           {% else %}
-            {% raise "atom call takes one String argument." %}
+            se "atom call takes one String argument." %}
           {% end %}
         {% else %}
           {% raise "atom call takes one String argument." %}
@@ -409,6 +409,23 @@ module Grammar
             {% end %}
           end
         {% end %}
+      {% elsif assignment.value[1].value.receiver.stringify == "Error" %}
+        class {{ klass }} < Error
+        end
+
+        def {{ assignment.target }}
+          %result = unroll {{ assignment.value[0] }}
+
+          {% if args.size != 1 %}
+            {% raise "Errors only take on argument. (message)" %}
+          {% end %}
+
+          if %result.is_a? Present
+            {{ klass }}.new {{ args[0] }}, %result.index, %result.size
+          else
+            %result
+          end
+        end
       {% end %}
     {% end %}
   end

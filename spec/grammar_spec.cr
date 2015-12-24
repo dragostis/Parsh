@@ -23,6 +23,8 @@ class SpecParser < Parser
     capture_foo = "a".cap & "b" & "c".cap, Foo = Node.new(:a, :c)
     capture_foobar = capture_foo, FooBar = Node.new(:foo)
 
+    exception = "a", Ferror = Error.new "Big problem."
+
     string = "a"
     string_cap = "a".cap
     empty_string = ""
@@ -201,6 +203,12 @@ describe "Grammar" do
             foo.c.should eq Base.new "c", 2, 1
           end
         end
+      end
+    end
+
+    describe "exceptions" do
+      it "returns exception" do
+        fails :exception, "a", SpecParser::Ferror.new "Big problem.", 0, 1
       end
     end
 
