@@ -20,6 +20,7 @@ class SpecParser < Parser
     capture_two = "a".cap & "b".cap
     capture_two_gap = "a".cap & "b" & "c".cap
     capture_repeated = "a".cap[0]
+    capture_rule = string.cap
     capture_foo = "a".cap & "b" & "c".cap, Foo = Node.new(:a, :c)
     capture_foobar = capture_foo, FooBar = Node.new(:foo)
 
@@ -175,6 +176,10 @@ describe "Grammar" do
           Base.new("a", 0, 1),
           Base.new("a", 1, 1)
         ]
+      end
+
+      it "captures rules" do
+        captures :capture_rule, "a", Base.new "a", 0, 1
       end
 
       it "captures object" do
