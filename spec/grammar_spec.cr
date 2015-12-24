@@ -6,7 +6,7 @@ require "../stream/string_stream"
 
 class SingleRuleParser < Parser
   rules do
-    single = "single"
+    root = "single"
   end
 
   def empty?
@@ -84,8 +84,6 @@ class SpecParser < Parser
     quiet_repetition = "a"[2].quiet
     quiet_present = "a".pres?.quiet
     quiet_absent = "a".abs?.quiet
-
-    root = "b"
   end
 
   def empty?
@@ -135,11 +133,11 @@ end
 describe "Grammar" do
   describe "rules" do
     it "parses root" do
-      SpecParser.new(StringStream.new "b").parse.should_not be_a Error
+      SingleRuleParser.new(StringStream.new "single").parse.should_not be_a Error
     end
 
     it "parses one rule" do
-      parses :single, "single", SingleRuleParser
+      parses :root, "single", SingleRuleParser
     end
 
     describe "captures" do

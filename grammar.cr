@@ -351,23 +351,23 @@ module Grammar
     {% end %}
   end
 
-  macro rule(assignment)
-    {% if assignment.value.is_a? Call || assignment.value.is_a? Var || assignment.value.is_a? StringLiteral || assignment.value.is_a? RegexLiteral %}
-      def {{ assignment.target }}
-        result = unroll {{ assignment.value }}
+  macro rule(name, value)
+    {% if value.is_a? Call || value.is_a? Var || value.is_a? StringLiteral || value.is_a? RegexLiteral %}
+      def {{ name }}
+        %result = unroll {{ value }}
 
-        if result.is_a? Array(Node)
-          result.reject! &.is_a?(Present)
+        if %result.is_a? Array(Node)
+          %result.reject! &.is_a?(Present)
         end
 
-        result
+        %result
       end
-    {% elsif assignment.is_a? Assign %}
-      {% klass = assignment.value[1].target %}
-      {% args = assignment.value[1].value.args %}
+    {% else %}
+      {% klass = value[1].target %}
+      {% args = value[1].value.args %}
 
-      {% if assignment.value[1].value.receiver.stringify == "Node" %}
-        {% if assignment.value[1].value.name.stringify == "new" %}
+      {% if value[1].value.receiver.stringify == "Node" %}
+        {% if value[1].value.name.stringify == "new" %}
           class {{ klass }} < Node
             {% for arg in args %}
               getter {{ arg }}
@@ -380,8 +380,8 @@ module Grammar
             end
           end
 
-          def {{ assignment.target }}
-            %results = unroll {{ assignment.value[0] }}
+          def {{ name }}
+            %results = unroll {{ value[0] }}
 
             {% if args.size > 1 %}
               if %results.is_a? Array(Node)
@@ -410,12 +410,12 @@ module Grammar
             {% end %}
           end
         {% end %}
-      {% elsif assignment.value[1].value.receiver.stringify == "Error" %}
+      {% elsif value[1].value.receiver.stringify == "Error" %}
         class {{ klass }} < Error
         end
 
-        def {{ assignment.target }}
-          %result = unroll {{ assignment.value[0] }}
+        def {{ name }}
+          %result = unroll {{ value[0] }}
 
           {% if args.size != 1 %}
             {% raise "Errors only take on argument. (message)" %}
@@ -433,10 +433,12 @@ module Grammar
 
   macro rules(&assignments)
     {% if assignments.body.is_a? Assign %}
-      rule {{ assignments.body }}
+      rule {{ assignments.body.target }}, {{ assignments.body.value }}
     {% elsif assignments.body.is_a? Expressions %}
       {% for assignment in assignments.body.expressions %}
-        rule {{ assignment }}
+        {% if assignment.is_a? Assign %}
+          rule {{ assignment.target }}, {{ assignment.value }}
+        {% end %}
       {% end %}
     {% end %}
   end
