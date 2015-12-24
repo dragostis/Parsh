@@ -2,6 +2,7 @@ require "./ast/*"
 
 module Grammar
   # RULES MUST NOT CONFICT WITH MACRO NAMES
+  # DO SOMETHING ABOUT rule.cap
   def regex_size(regex)
     variable = /[^\\](\?)|([^\\]\*)|([^\\]\+)|([^\\]\{)|([^\\]\|)|([^\\]\))/
 
@@ -174,7 +175,13 @@ module Grammar
       {% if capture %}
         %result = %result + %current if %current.is_a? Base
       {% else %}
-        %results << %current unless %current.is_a? Present
+        unless %current.is_a? Present
+          if %current.is_a? Array(Node)
+            %results + %current
+          else
+            %results << %current
+          end
+        end
       {% end %}
 
       break if {{ maximum }} != 0 && %times == {{ maximum }}
@@ -194,20 +201,14 @@ module Grammar
         end
       {% end %}
     else
+      revert %index
+
       {% if quiet %}
-        if %current.is_a? Error
-          unexpected %current.index, %current.size
-        else
-          %current
-        end
+        unexpected %current.index, %current.size
       {% elsif atom == nil %}
         %current
       {% else %}
-        if %current.is_a? Error
-          Absent.new {{ atom }}, %current.index, %current.size
-        else
-          %current
-        end
+        Absent.new {{ atom }}, %current.index, %current.size
       {% end %}
     end
   end
