@@ -36,7 +36,7 @@ class StringStream
     if result.is_a? Regex::MatchData
       matches = @index == result.byte_begin
 
-      @index = result.byte_end if progress
+      @index = result.byte_end if matches && progress
 
       matches
     else
