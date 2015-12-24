@@ -1,22 +1,57 @@
 require "./ast/*"
 
 module Grammar
-  macro exact(string, capture, atom, quiet)
+  # RULES MUST NOT CONFICT WITH MACRO NAMES
+  def regex_size(regex)
+    variable = /[^\\](\?)|([^\\]\*)|([^\\]\+)|([^\\]\{)|([^\\]\|)|([^\\]\))/
+
+    if regex.inspect.match variable
+      raise "Regex can only contain special characters and ranges."
+    end
+
+    size = 0
+    range = false
+
+    regex.inspect.chars.each do |c|
+      case c
+      when '\\' then next
+      when '/' then next
+      when '[' then range = true
+      when ']'
+        range = false
+
+        size += 1
+      else
+        size += 1 unless range
+      end
+    end
+
+    size
+  end
+
+  macro terminal(terminal, capture, atom, quiet)
     %index = stream_index
 
-    if try {{ string }}
+    {% if terminal.is_a? StringLiteral %}
+      %size = {{ terminal }}.size
+    {% else %}
+      %size = regex_size {{ terminal }}
+    {% end %}
+
+    if try {{ terminal }}
       {% if capture %}
-        Base.new {{ string }}, %index, {{ string }}.size
+        %range = %index...(%index + %size)
+        Base.new read(%range), %index, %size
       {% else %}
-        Present.new %index, {{ string }}.size
+        Present.new %index, %size
       {% end %}
     else
       {% if quiet %}
-        unexpected %index, {{ string }}.size
+        unexpected %index, %size
       {% elsif atom == nil %}
-        Absent.new {{ string.stringify }}, %index, {{ string }}.size
+        Absent.new {{ terminal.stringify }}, %index, %size
       {% else %}
-        Absent.new {{ atom }}, %index, {{ string }}.size
+        Absent.new {{ atom }}, %index, %size
       {% end %}
     end
   end
@@ -259,13 +294,13 @@ module Grammar
   end
 
   macro unexpected(index, size)
-    %range = {{ index }}..({{ index }} + {{ size }})
+    %range = {{ index }}...({{ index }} + {{ size }})
     Unexpected.new "\"#{read(%range)}\"", {{ index }}, {{ size }}
   end
 
   macro unroll(call, capture = false, atom = nil, quiet = false)
-    {% if call.is_a? StringLiteral %}
-      exact {{ call }}, {{ capture }}, {{ atom }}, {{ quiet }}
+    {% if call.is_a? StringLiteral || call.is_a? RegexLiteral %}
+      terminal {{ call }}, {{ capture }}, {{ atom }}, {{ quiet }}
     {% elsif call.is_a? Call %}
       {% if call.name.stringify == "&" %}
         composed unroll({{ call.receiver }}, {{ capture }}),
@@ -316,7 +351,7 @@ module Grammar
   end
 
   macro rule(assignment)
-    {% if assignment.value.is_a? Call || assignment.value.is_a? Var || assignment.value.is_a? StringLiteral %}
+    {% if assignment.value.is_a? Call || assignment.value.is_a? Var || assignment.value.is_a? StringLiteral || assignment.value.is_a? RegexLiteral %}
       def {{ assignment.target }}
         result = unroll {{ assignment.value }}
 

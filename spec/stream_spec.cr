@@ -15,11 +15,36 @@ macro spec_stream(klass, stream)
       {{ stream }}.matches?("abb").should be_false
     end
 
-    it "matches the whole stream" do
+    it "matches regex" do
+      {{ stream }}.matches?(/ab...bb/).should be_true
+    end
+
+    it "fails to match regex" do
+      {{ stream }}.matches?(/[^a]b...bb/).should be_false
+    end
+
+    it "fails to match regex longer than stream" do
+      {{ stream }}.matches?(/ab...bbb/).should be_false
+    end
+
+    it "fails to match regex at a later position" do
+      {{ stream }}.matches?(/b/).should be_false
+    end
+
+    it "matches the whole stream with strings" do
       %stream = {{ stream }}
 
       %stream.matches?("abc").should be_true
       %stream.matches?("abbb").should be_true
+
+      %stream.empty?.should be_true
+    end
+
+    it "matches the whole stream with regexes" do
+      %stream = {{ stream }}
+
+      %stream.matches?(/ab./).should be_true
+      %stream.matches?(/ab{3}/).should be_true
 
       %stream.empty?.should be_true
     end

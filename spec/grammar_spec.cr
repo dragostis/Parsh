@@ -23,11 +23,15 @@ class SpecParser < Parser
     capture_foo = "a".cap & "b" & "c".cap, Foo = Node.new(:a, :c)
     capture_foobar = capture_foo, FooBar = Node.new(:foo)
 
-    terminal = "a"
-    terminal_cap = "a".cap
-    empty_terminal = ""
-    long_terminal = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-    long_terminal_cap = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaa".cap
+    string = "a"
+    string_cap = "a".cap
+    empty_string = ""
+    long_string = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    long_string_cap = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaa".cap
+
+    regex = /a/
+    regex_cap = /a/.cap
+    empty_regex = //
 
     composed = "a" & "b"
     composed_cap = ("a" & "b").cap
@@ -62,7 +66,7 @@ class SpecParser < Parser
     absent_choice = "a".abs? | "b"
     present_absent_cap = ("a" & "b".pres? & "a".abs? & "b").cap
 
-    atomic_no_name = terminal.atom
+    atomic_no_name = string.atom
     atomic_terminal = "a".atom("rule")
     atomic_composed = ("a" & "b").atom("rule")
     atomic_choice = ("a" | "b").atom("rule")
@@ -70,7 +74,7 @@ class SpecParser < Parser
     atomic_present = "a".pres?.atom("rule")
     atomic_absent = "a".abs?.atom("rule")
 
-    quiet = terminal.quiet
+    quiet = string.quiet
     quiet_terminal = "a".quiet
     quiet_composed = ("a" & "b").quiet
     quiet_choice = ("a" | "b").quiet
@@ -83,6 +87,11 @@ class SpecParser < Parser
 
   def empty?
     @stream.empty?
+  end
+end
+
+class NoParser < Parser
+  def initialize(@stream = StringStream.new "")
   end
 end
 
@@ -195,38 +204,64 @@ describe "Grammar" do
       end
     end
 
-    describe "terminals" do
-      it "parses terminals" do
-        parses :terminal, "a"
+    describe "string terminals" do
+      it "parses string terminals" do
+        parses :string, "a"
+      end
+
+      it "fails string terminals on wrong strings" do
+        fails :string, "b", Absent.new "\"a\"", 0, 1
+      end
+
+      it "fails string terminals on longer strings" do
+        fails :string, "aa"
+      end
+
+      it "fails string terminals on shorter strings" do
+        fails :string, "", Absent.new "\"a\"", 0, 1
+      end
+
+      it "captures string terminals" do
+        captures :string_cap, "a", Base.new "a", 0, 1
+      end
+
+      it "parses empty string terminals" do
+        parses :empty_string, ""
+      end
+
+      it "parses long string terminals" do
+        parses :long_string, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      end
+
+      it "captures long string terminals" do
+        captures :long_string_cap, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                 Base.new "aaaaaaaaaaaaaaaaaaaaaaaaaaaaa", 0, 29
+      end
+    end
+
+    describe "regex terminals" do
+      it "parses regex terminals" do
+        parses :regex, "a"
       end
 
       it "fails terminals on wrong strings" do
-        fails :terminal, "b", Absent.new "\"a\"", 0, 1
+        fails :regex, "b", Absent.new "/a/", 0, 1
       end
 
       it "fails terminals on longer strings" do
-        fails :terminal, "aa"
+        fails :regex, "aa"
       end
 
       it "fails terminals on shorter strings" do
-        fails :terminal, "", Absent.new "\"a\"", 0, 1
+        fails :regex, "", Absent.new "/a/", 0, 1
       end
 
       it "captures terminals" do
-        captures :terminal_cap, "a", Base.new "a", 0, 1
+        captures :regex_cap, "a", Base.new "a", 0, 1
       end
 
       it "parses empty terminals" do
-        parses :empty_terminal, ""
-      end
-
-      it "parses long terminals" do
-        parses :long_terminal, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-      end
-
-      it "captures long terminals" do
-        captures :long_terminal_cap, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-                 Base.new "aaaaaaaaaaaaaaaaaaaaaaaaaaaaa", 0, 29
+        parses :empty_regex, ""
       end
     end
 
@@ -395,7 +430,7 @@ describe "Grammar" do
 
     describe "atomic rules" do
       it "fails atomic rules with no name" do
-        fails :atomic_no_name, "b", Absent.new "terminal", 0, 1
+        fails :atomic_no_name, "b", Absent.new "string", 0, 1
       end
 
       it "fails atomic terminals" do
@@ -428,12 +463,12 @@ describe "Grammar" do
         fails :quiet, "b", Unexpected.new "\"b\"", 0, 1
       end
 
-      it "fails quite terminals" do
+      it "fails quiet terminals" do
         fails :quiet_terminal, "b", Unexpected.new "\"b\"", 0, 1
       end
 
       it "fails quiet composed rules" do
-        fails :quiet_composed, "ac", Unexpected.new "\"ac\"", 0, 2
+        fails :quiet_composed, "acc", Unexpected.new "\"ac\"", 0, 2
       end
 
       it "fails quiet choices" do
@@ -451,6 +486,59 @@ describe "Grammar" do
       it "fails quiet absent rules" do
         fails :quiet_absent, "a", Unexpected.new "\"a\"", 0, 1
       end
+    end
+  end
+
+  describe "regex_size" do
+    no_parser = NoParser.new
+    message = "Regex can only contain special characters and ranges."
+
+    it "fails on optionals" do
+      expect_raises Exception, message do
+        no_parser.regex_size(/a?/)
+      end
+    end
+
+    it "fails on *" do
+      expect_raises Exception, message do
+        no_parser.regex_size(/a*/)
+      end
+    end
+
+    it "fails on +" do
+      expect_raises Exception, message do
+        no_parser.regex_size(/a+/)
+      end
+    end
+
+    it "fails on ranges" do
+      expect_raises Exception, message do
+        no_parser.regex_size(/a{3}/)
+      end
+    end
+
+    it "fails on choices" do
+      expect_raises Exception, message do
+        no_parser.regex_size(/a|b/)
+      end
+    end
+
+    it "fails on groups" do
+      expect_raises Exception, message do
+        no_parser.regex_size(/(a)/)
+      end
+    end
+
+    it "passes on escapes" do
+      no_parser.regex_size(/a\?\*\+\{2,3\}\(a\)/)
+    end
+
+    it "returns sizes of characters and escapes" do
+      no_parser.regex_size(/a\s\db/).should eq 4
+    end
+
+    it "returns sizes of ranges" do
+      no_parser.regex_size(/[a-z][1-9]/).should eq 2
     end
   end
 end
