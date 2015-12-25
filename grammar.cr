@@ -2,7 +2,6 @@ require "./ast/*"
 
 module Grammar
   # RULES MUST NOT CONFICT WITH MACRO NAMES
-  # DO SOMETHING ABOUT rule.cap
   def regex_size(regex)
     variable = /[^\\](\?)|([^\\]\*)|([^\\]\+)|([^\\]\{)|([^\\]\|)|([^\\]\))/
 
@@ -337,9 +336,17 @@ module Grammar
             %result
           end
         {% elsif atom == nil %}
-          {{ call }}
+          {% if capture %}
+            {{ (call.name + "_cap").id }}
+          {% else %}
+            {{ call }}
+          {% end %}
         {% else %}
-          %result = {{ call }}
+          {% if capture %}
+            %result = {{ (call.name + "_cap").id }}
+          {% else %}
+            %result = {{ call }}
+          {% end %}
 
           if %result.is_a? Error
             Absent.new {{ atom }}, %result.index, %result.size
@@ -351,10 +358,10 @@ module Grammar
     {% end %}
   end
 
-  macro rule(name, value)
+  macro rule(call, value)
     {% if value.is_a? Call || value.is_a? Var || value.is_a? StringLiteral || value.is_a? RegexLiteral %}
-      def {{ name }}
-        %result = unroll {{ value }}
+      def {{ call }}
+        %result = unroll {{ value }}, {{ call.name =~ /_cap$/ }}
 
         if %result.is_a? Array(Node)
           %result.reject! &.is_a?(Present)
@@ -380,8 +387,8 @@ module Grammar
             end
           end
 
-          def {{ name }}
-            %results = unroll {{ value[0] }}
+          def {{ call }}
+            %results = unroll {{ value[0] }}, {{ call.name =~ /_cap$/ }}
 
             {% if args.size > 1 %}
               if %results.is_a? Array(Node)
@@ -414,7 +421,7 @@ module Grammar
         class {{ klass }} < Error
         end
 
-        def {{ name }}
+        def {{ call }}
           %result = unroll {{ value[0] }}
 
           {% if args.size != 1 %}
@@ -431,13 +438,95 @@ module Grammar
     {% end %}
   end
 
+  macro select_used(current, captures, used, rules)
+    {% infix = /^(&|\|)$/ %}
+    {% postfix = /^((\[\])|(opt)|(pres\?)|(abs\?)|(cap)|(atom)|(quiet))$/ %}
+
+    {% last = current.last %}
+    {% current = current.reject { |rule| rule == last } %}
+
+    {% if last == nil %}
+      {% last = captures.last %}
+      {% captures = captures.reject { |rule| rule == last } %}
+
+      {% if last == nil %}
+        {% for key in used %}
+          {% if key =~ /_cap$/%}
+            {% key = key.gsub /_cap$/, "" %}
+
+            rule {{ (key + "_cap").id }}, {{ rules[key] }}
+          {% else %}
+            rule {{ key.id }}, {{ rules[key] }}
+          {% end %}
+        {% end %}
+      {% else %}
+        {% if last.is_a? Call %}
+          {% if last.name =~ infix %}
+            {% captures << last.receiver %}
+            {% captures << last.args[0] %}
+          {% elsif last.name =~ postfix %}
+            {% captures << last.receiver %}
+          {% else %}
+            {% name_cap = (last.name + "_cap").symbolize %}
+
+            {% if !used.includes?(name_cap) %}
+              {% used << name_cap %}
+              {% captures << rules[last.name.symbolize] %}
+            {% end %}
+          {% end %}
+        {% end %}
+
+        {% if captures.empty? %}
+          select_used [] of Call, [] of Call, {{ used }}, {{ rules }}
+        {% else %}
+          select_used [] of Call, {{ captures }}, {{ used }}, {{ rules }}
+        {% end %}
+      {% end %}
+    {% else %}
+      {% if last.is_a? Call %}
+        {% if last.name =~ infix %}
+          {% current << last.receiver %}
+          {% current << last.args[0] %}
+        {% elsif last.name =~ postfix %}
+          {% if last.name == :cap.id %}
+            {% captures << last.receiver %}
+          {% else %}
+            {% current << last.receiver %}
+          {% end %}
+        {% else %}
+          {% if !used.includes?(last.name.symbolize) %}
+            {% used << last.name.symbolize %}
+            {% current << rules[last.name.symbolize] %}
+          {% end %}
+        {% end %}
+      {% end %}
+
+      {% if current.empty? %}
+        select_used [] of Call, {{ captures }}, {{ used }}, {{ rules }}
+      {% else %}
+        select_used {{ current }}, {{ captures }}, {{ used }}, {{ rules }}
+      {% end %}
+    {% end %}
+  end
+
   macro rules(&assignments)
     {% if assignments.body.is_a? Assign %}
       rule {{ assignments.body.target }}, {{ assignments.body.value }}
     {% elsif assignments.body.is_a? Expressions %}
+      {% rules = {} of StringLiteral => Assign %}
+
       {% for assignment in assignments.body.expressions %}
         {% if assignment.is_a? Assign %}
-          rule {{ assignment.target }}, {{ assignment.value }}
+          {% rules[assignment.target.symbolize] = assignment.value %}
+        {% end %}
+      {% end %}
+
+      {% if rules[:root] %}
+        {% used = [:root] %}
+        select_used [{{ rules[:root] }}], [] of Call, {{ used }}, {{ rules }}
+      {% else %}
+        {% for key in rules.keys %}
+          rule {{ key.id }}, {{ rules[key] }}
         {% end %}
       {% end %}
     {% end %}
