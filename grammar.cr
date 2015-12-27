@@ -439,7 +439,7 @@ module Grammar
                     , %index, %size
                   )
                 else
-                  {% if args.size == 1%}
+                  {% if args.size == 1 %}
                     {{ klass }}.new %results, %results.index, %results.size
                   {% else %}
                     raise "{{ klass.id }} needs {{ args.size.id }} captures."
