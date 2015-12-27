@@ -22,8 +22,10 @@ class SpecParser < Parser
     capture_two_gap = "a".cap & "b" & "c".cap
     capture_repeated = "a".cap[0]
     capture_rule = string.cap
-    capture_foo = "a".cap & "b" & "c".cap, Foo = Node.new(:a, :c)
-    capture_foobar = capture_foo, FooBar = Node.new(:foo)
+    capture_foo = "a".cap & "b" & "c".cap, Foo = Node.new :a, :c
+    capture_foobar = capture_foo, FooBar = Node.new :foo
+    capture_foofoobar = "a".cap & "b".cap & "c".cap & "d".cap,
+                        FooFooBar = Node.new :a, :b
 
     exception = "a", Ferror = Error.new "Big problem."
 
@@ -210,6 +212,21 @@ describe "Grammar" do
             foo.a.should eq Base.new "a", 0, 1
             foo.c.should eq Base.new "c", 2, 1
           end
+        end
+      end
+
+      it "captures collapsed argument objects" do
+        foo = SpecParser.new(StringStream.new "abcd").capture_foofoobar
+
+        foo.is_a?(SpecParser::FooFooBar).should be_true
+
+        if foo.is_a? SpecParser::FooFooBar
+          foo.a.should eq Base.new "a", 0, 1
+          foo.b.should eq [
+            Base.new("b", 1, 1),
+            Base.new("c", 2, 1),
+            Base.new("d", 3, 1)
+          ]
         end
       end
     end

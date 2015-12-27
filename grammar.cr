@@ -415,7 +415,7 @@ module Grammar
           def {{ call }}
             %results = unroll {{ value[0] }}, {{ call.name =~ /_cap$/ }}
 
-            {% if args.size > 1 %}
+            {% if args.size >= 1 %}
               if !%results.is_a? Error
                 if %results.is_a? Array(Node)
                   %index = %results[0].index
@@ -424,30 +424,26 @@ module Grammar
                   %results.reject! &.is_a?(Present)
 
                   {{ klass }}.new(
-                    %results[0]
+                    {% if args.size > 1 %}
+                      %results[0]
 
-                    {% for i in 1...args.size %}
-                      , %results[{{ i }}]
+                      {% for i in 1...(args.size - 1) %}
+                        , %results[{{ i }}]
+                      {% end %}
+                      , %results.size == {{ args.size }} ?
+                        %results.last : %results[{{ args.size - 1 }}..-1]
+                    {% else %}
+                      %results
                     {% end %}
+
                     , %index, %size
                   )
                 else
-                  raise  "{{ klass.id }} needs {{ args.size.id }} captures."
-                end
-              else
-                %results
-              end
-            {% elsif args.size == 1 %}
-              if !%results.is_a? Error
-                if %results.is_a? Array(Node)
-                  %index = %results[0].index
-                  %size = %results[-1].index + %results[-1].size - %index
-
-                  %results.reject! &.is_a?(Present)
-
-                  {{ klass }}.new %results, %index, %size
-                else
-                  {{ klass }}.new %results, %results.index, %results.size
+                  {% if args.size == 1%}
+                    {{ klass }}.new %results, %results.index, %results.size
+                  {% else %}
+                    raise "{{ klass.id }} needs {{ args.size.id }} captures."
+                  {% end %}
                 end
               else
                 %results
