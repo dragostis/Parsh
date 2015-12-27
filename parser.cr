@@ -6,6 +6,7 @@ class Parser
 
   def initialize(@stream)
     @progress = true
+    @fake = false
   end
 
   def progress
@@ -24,8 +25,18 @@ class Parser
     @stream.seek index
   end
 
+  def fake(&rule)
+    @fake = true
+
+    result = rule.call
+
+    @fake = false
+
+    result
+  end
+
   def try(string)
-    @stream.matches? string, @progress
+    @fake || @stream.matches? string, @progress
   end
 
   def parse

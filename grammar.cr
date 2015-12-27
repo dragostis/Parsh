@@ -215,7 +215,7 @@ module Grammar
       {% if capture %}
         %result
       {% else %}
-        if %results.empty?
+        if %results.empty? && fake { {{ rule }} }.is_a? Present
           %new_index = stream_index
           Present.new %new_index, %new_index - %index
         else
