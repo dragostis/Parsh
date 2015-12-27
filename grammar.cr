@@ -404,7 +404,9 @@ module Grammar
             {% end %}
 
             def initialize(
-              {{ args.map { |arg| ("@" + arg.id.stringify).id }.argify }},
+              {% if args.size >= 1 %}
+                {{ args.map { |arg| ("@" + arg.id.stringify).id }.argify }},
+              {% end %}
               @index, @size
             )
             end
@@ -414,26 +416,49 @@ module Grammar
             %results = unroll {{ value[0] }}, {{ call.name =~ /_cap$/ }}
 
             {% if args.size > 1 %}
-              if %results.is_a? Array(Node)
-                %index = %results[0].index
-                %size = %results[-1].index + %results[-1].size - %index
+              if !%results.is_a? Error
+                if %results.is_a? Array(Node)
+                  %index = %results[0].index
+                  %size = %results[-1].index + %results[-1].size - %index
 
-                %results.reject! &.is_a?(Present)
+                  %results.reject! &.is_a?(Present)
 
-                {{ klass }}.new(
-                  %results[0]
+                  {{ klass }}.new(
+                    %results[0]
 
-                  {% for i in 1...args.size %}
-                    , %results[{{ i }}]
-                  {% end %}
-                  , %index, %size
-                )
+                    {% for i in 1...args.size %}
+                      , %results[{{ i }}]
+                    {% end %}
+                    , %index, %size
+                  )
+                else
+                  raise  "{{ klass.id }} needs {{ args.size.id }} captures."
+                end
               else
-                raise  "{{ klass.id }} needs {{ args.size.id }} captures."
+                %results
+              end
+            {% elsif args.size == 1 %}
+              if !%results.is_a? Error
+                if %results.is_a? Array(Node)
+                  %index = %results[0].index
+                  %size = %results[-1].index + %results[-1].size - %index
+
+                  %results.reject! &.is_a?(Present)
+
+                  {{ klass }}.new %results, %index, %size
+                else
+                  {{ klass }}.new %results, %results.index, %results.size
+                end
+              else
+                %results
               end
             {% else %}
               if !%results.is_a? Error
-                {{ klass }}.new %results, %results.index, %results.size
+                if %results.is_a? Array(Node)
+                  raise "{{ klass.id }} needs 0 captures."
+                else
+                  {{ klass }}.new %results.index, %results.size
+                end
               else
                 %results
               end
