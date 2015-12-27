@@ -65,11 +65,8 @@ module Grammar
 
       if !%right.is_a? Error
         {% if capture %}
-          (%left as Base) + (%right as Base)
-        {% else %}
-          if %left.is_a? Present && %right.is_a? Present
-            %new_index = stream_index
-            Present.new %new_index, %new_index - %index
+          if %left.is_a? Base && %right.is_a? Base
+            %left + %right
           else
             if %left.is_a? Array(Node)
               if %right.is_a? Array(Node)
@@ -85,6 +82,32 @@ module Grammar
               %right
             else
               [%left, %right]
+            end
+          end
+        {% else %}
+          if %left.is_a? Present && %right.is_a? Present
+            %left + %right
+          else
+            if %left.is_a? Array(Node)
+              if %right.is_a? Array(Node)
+                %right.each { |rule| %left << rule }
+              else
+                %left << %right
+              end
+
+              %left
+            elsif %right.is_a? Array(Node)
+              %right.unshift %left
+
+              %right
+            else
+              if %left.is_a? Present
+                %right
+              elsif %right.is_a? Present
+                %left
+              else
+                [%left, %right]
+              end
             end
           end
         {% end %}
@@ -422,7 +445,7 @@ module Grammar
         end
 
         def {{ call }}
-          %result = unroll {{ value[0] }}
+          %result = unroll {{ value[0] }}, {{ call.name =~ /_cap$/ }}
 
           {% if args.size != 1 %}
             {% raise "Errors only take on argument. (message)" %}
@@ -460,6 +483,10 @@ module Grammar
           {% end %}
         {% end %}
       {% else %}
+        {% if last.is_a? ArrayLiteral %}
+          {% last = last[0] %}
+        {% end %}
+
         {% if last.is_a? Call %}
           {% if last.name =~ infix %}
             {% captures << last.receiver %}
@@ -483,6 +510,10 @@ module Grammar
         {% end %}
       {% end %}
     {% else %}
+      {% if last.is_a? ArrayLiteral %}
+        {% last = last[0] %}
+      {% end %}
+
       {% if last.is_a? Call %}
         {% if last.name =~ infix %}
           {% current << last.receiver %}

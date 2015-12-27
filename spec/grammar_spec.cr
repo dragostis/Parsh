@@ -17,6 +17,7 @@ end
 class SpecParser < Parser
   rules do
     capture_one = "a".cap
+    capture_one_surrounded = "a" & "b".cap & "c"
     capture_two = "a".cap & "b".cap
     capture_two_gap = "a".cap & "b" & "c".cap
     capture_repeated = "a".cap[0]
@@ -145,6 +146,10 @@ describe "Grammar" do
         captures :capture_one, "a", Base.new "a", 0, 1
       end
 
+      it "captures one surrounded string" do
+        captures :capture_one_surrounded, "abc", Base.new "b", 1, 1
+      end
+
       it "captures two strings" do
         captures :capture_two, "ab", [
           Base.new("a", 0, 1),
@@ -159,8 +164,8 @@ describe "Grammar" do
         ]
       end
 
-      it "doesn't capture repeated strings 0 times" do
-        parses :capture_repeated, ""
+      it "captures repeated strings 0 times" do
+        captures :capture_repeated, "", [] of Base
       end
 
       it "captures repeated strings once" do
