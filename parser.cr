@@ -7,6 +7,7 @@ class Parser
   def initialize(@stream)
     @progress = true
     @fake = false
+    @limits = [] of Array(Int32)
   end
 
   def progress
@@ -23,6 +24,26 @@ class Parser
 
   def revert(index)
     @stream.seek index
+  end
+
+  def add_limit
+    @limits << [] of Int32
+  end
+
+  def limit(index, size)
+    if @limits.last.empty?
+      @limits.last << index
+      @limits.last << size
+    else
+      limit = @limits.last
+
+      limit[0] = [limit[0], index].min
+      limit[1] += size
+    end
+  end
+
+  def limit
+    @limits.pop
   end
 
   def fake(&rule)

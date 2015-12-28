@@ -56,7 +56,7 @@ module Grammar
     end
   end
 
-  macro composed(left, right, capture, atom, quiet)
+  macro composed(left, right, capture, atom, quiet, limit)
     %index = stream_index
     %left = {{ left }}
 
@@ -102,8 +102,16 @@ module Grammar
               %right
             else
               if %left.is_a? Present
+                {% if limit %}
+                  limit %left.index, %left.size
+                {% end %}
+
                 %right
               elsif %right.is_a? Present
+                {% if limit %}
+                  limit %right.index, %right.size
+                {% end %}
+
                 %left
               else
                 [%left, %right]
@@ -321,34 +329,34 @@ module Grammar
     Unexpected.new "\"#{read(%range)}\"", {{ index }}, {{ size }}
   end
 
-  macro unroll(call, capture = false, atom = nil, quiet = false)
+  macro unroll(call, capture = false, atom = nil, quiet = false, limit = false)
     {% if call.is_a? StringLiteral || call.is_a? RegexLiteral %}
       terminal {{ call }}, {{ capture }}, {{ atom }}, {{ quiet }}
     {% elsif call.is_a? Call %}
       {% if call.name.stringify == "&" %}
-        composed unroll({{ call.receiver }}, {{ capture }}),
-                 unroll({{ call.args[0] }}, {{ capture }}), {{ capture }}, {{ atom }}, {{ quiet }}
+        composed unroll({{ call.receiver }}, {{ capture }}, limit: {{ limit }}),
+                 unroll({{ call.args[0] }}, {{ capture }}, limit: {{ limit }}), {{ capture }}, {{ atom }}, {{ quiet }}, {{ limit }}
       {% elsif call.name.stringify == "|" %}
-        choice unroll({{ call.receiver }}, {{ capture }}),
-               unroll({{ call.args[0] }}, {{ capture }}), {{ capture }}, {{ atom }}, {{ quiet }}
+        choice unroll({{ call.receiver }}, {{ capture }}, limit: {{ limit }}),
+               unroll({{ call.args[0] }}, {{ capture }}, limit: {{ limit }}), {{ capture }}, {{ atom }}, {{ quiet }}
       {% elsif call.name.stringify == "[]" %}
         {% if call.args.size == 1 %}
-          repeat unroll({{ call.receiver }}, {{ capture }}), {{ capture }}, {{ atom }}, {{ quiet }}, {{ call.args[0] }}
+          repeat unroll({{ call.receiver }}, {{ capture }}, limit: {{ limit }}), {{ capture }}, {{ atom }}, {{ quiet }}, {{ call.args[0] }}
         {% elsif call.args.size == 2 %}
-          repeat unroll({{ call.receiver }}, {{ capture }}), {{ capture }}, {{ atom }}, {{ quiet }}, {{ call.args[0] }}, {{ call.args[1] }}
+          repeat unroll({{ call.receiver }}, {{ capture }}, limit: {{ limit }}), {{ capture }}, {{ atom }}, {{ quiet }}, {{ call.args[0] }}, {{ call.args[1] }}
         {% end %}
       {% elsif call.name.stringify == "opt" %}
-        optional unroll({{ call.receiver }}, {{ capture }}), {{ capture }}
+        optional unroll({{ call.receiver }}, {{ capture }}, limit: {{ limit }}), {{ capture }}
       {% elsif call.name.stringify == "pres?" %}
-        present? unroll({{ call.receiver }}, {{ capture }}), {{ capture }}, {{ atom }}, {{ quiet }}
+        present? unroll({{ call.receiver }}, {{ capture }}, limit: {{ limit }}), {{ capture }}, {{ atom }}, {{ quiet }}
       {% elsif call.name.stringify == "abs?" %}
-        absent? unroll({{ call.receiver }}, {{ capture }}), {{ capture }}, {{ atom }}, {{ quiet }}
+        absent? unroll({{ call.receiver }}, {{ capture }}, limit: {{ limit }}), {{ capture }}, {{ atom }}, {{ quiet }}
       {% elsif call.name.stringify == "cap" %}
-        unroll {{ call.receiver }}, true
+        unroll {{ call.receiver }}, true, limit: {{ limit }}
       {% elsif call.name.stringify == "atom" %}
         atom {{ call }}, {{ capture }}
       {% elsif call.name.stringify == "quiet" %}
-        unroll {{ call.receiver }}, {{ capture }}, quiet: true
+        unroll {{ call.receiver }}, {{ capture }}, quiet: true, limit: {{ limit }}
       {% else %}
         {% if quiet %}
           %result = {{ call }}
@@ -410,16 +418,31 @@ module Grammar
               @index, @size
             )
             end
+
+            def ==(other)
+              if other.is_a? {{ klass }}
+                {% for arg in args %}
+                  @{{ arg.id }} == other.{{ arg.id }} &&
+                {% end %}
+                @index == other.index && @size == other.size
+              else
+                false
+              end
+            end
           end
 
           def {{ call }}
-            %results = unroll {{ value[0] }}, {{ call.name =~ /_cap$/ }}
+            add_limit
+
+            %results = unroll {{ value[0] }}, {{ call.name =~ /_cap$/ }}, limit: true
 
             {% if args.size >= 1 %}
               if !%results.is_a? Error
                 if %results.is_a? Array(Node)
                   %index = %results[0].index
                   %size = %results[-1].index + %results[-1].size - %index
+
+                  limit %index, %size
 
                   %results.reject! &.is_a?(Present)
 
@@ -440,7 +463,10 @@ module Grammar
                   )
                 else
                   {% if args.size == 1 %}
-                    {{ klass }}.new %results, %results.index, %results.size
+                    limit %results.index, %results.size
+                    %limit = limit
+
+                    {{ klass }}.new %results, %limit[0], %limit[1]
                   {% else %}
                     raise "{{ klass.id }} needs {{ args.size.id }} captures."
                   {% end %}
@@ -453,7 +479,10 @@ module Grammar
                 if %results.is_a? Array(Node)
                   raise "{{ klass.id }} needs 0 captures."
                 else
-                  {{ klass }}.new %results.index, %results.size
+                  limit %results.index, %results.size
+                  %limit = limit
+
+                  {{ klass }}.new %limit[0], %limit[1]
                 end
               else
                 %results
