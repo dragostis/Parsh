@@ -96,6 +96,7 @@ end
 
 class NoParser < Parser
   def initialize(@stream = StringStream.new "")
+    super @stream
   end
 end
 
