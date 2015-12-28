@@ -4,11 +4,36 @@ require "../stream/*"
 macro spec_stream(klass, stream)
   describe "{{ klass }}" do
     it "returns its size" do
-      {{ stream }}.size.should eq 7
+      {{ stream }}.size.should eq 12
     end
 
     it "matches strings" do
       {{ stream }}.matches?("abc").should be_true
+    end
+
+    it "skips first whitespaces" do
+      {{ stream }}.skipped.should eq 2
+    end
+
+    it "resets skips" do
+      %stream = {{ stream }}
+
+      %stream.skipped.should eq 2
+      %stream.skipped.should eq 0
+    end
+
+    it "skips after match" do
+      %stream = {{ stream }}
+
+      %stream.matches?("abca").should be_true
+      %stream.skipped.should eq 1
+    end
+
+    it "doesn't skip after match" do
+      %stream = {{ stream }}
+
+      %stream.matches?("abc").should be_true
+      %stream.skipped.should eq 0
     end
 
     it "fails to match strings" do
@@ -24,7 +49,7 @@ macro spec_stream(klass, stream)
     end
 
     it "fails to match regex longer than stream" do
-      {{ stream }}.matches?(/ab...bbb/).should be_false
+      {{ stream }}.matches?(/ab...bbbc/).should be_false
     end
 
     it "fails to match regex at a later position" do
@@ -34,8 +59,8 @@ macro spec_stream(klass, stream)
     it "matches the whole stream with strings" do
       %stream = {{ stream }}
 
-      %stream.matches?("abc").should be_true
-      %stream.matches?("abbb").should be_true
+      %stream.matches?("abca").should be_true
+      %stream.matches?("bbb").should be_true
 
       %stream.empty?.should be_true
     end
@@ -43,8 +68,8 @@ macro spec_stream(klass, stream)
     it "matches the whole stream with regexes" do
       %stream = {{ stream }}
 
-      %stream.matches?(/ab./).should be_true
-      %stream.matches?(/ab{3}/).should be_true
+      %stream.matches?(/ab.a/).should be_true
+      %stream.matches?(/b{3}/).should be_true
 
       %stream.empty?.should be_true
     end
@@ -57,18 +82,18 @@ macro spec_stream(klass, stream)
       %stream = {{ stream }}
 
       %stream.matches?("abc", false).should be_true
-      %stream.matches?("abc").should be_true
-      %stream.matches?("abbb").should be_true
+      %stream.matches?("abca").should be_true
+      %stream.matches?("bbb").should be_true
     end
 
     it "seeks the index" do
       %stream = {{ stream }}
 
       %stream.matches?("abc").should be_true
-      %stream.seek 1
+      %stream.seek 3
       %stream.matches?("bca").should be_true
     end
   end
 end
 
-spec_stream StringStream, StringStream.new "abcabbb"
+spec_stream StringStream, StringStream.new("  abca bbb  ", /\ /)
