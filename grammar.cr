@@ -92,24 +92,32 @@ module Grammar
               if %right.is_a? Array(Node)
                 %right.each { |rule| %left << rule }
               else
+                {% if limit %}
+                  limit %right.index, %right.size if !fake && %right.is_a? Present
+                {% end %}
+
                 %left << %right
               end
 
               %left
             elsif %right.is_a? Array(Node)
+              {% if limit %}
+                limit %left.index, %left.size if !fake && %left.is_a? Present
+              {% end %}
+
               %right.unshift %left
 
               %right
             else
               if %left.is_a? Present
                 {% if limit %}
-                  limit %left.index, %left.size
+                  limit %left.index, %left.size if !fake && %left.is_a? Present
                 {% end %}
 
                 %right
               elsif %right.is_a? Present
                 {% if limit %}
-                  limit %right.index, %right.size
+                  limit %right.index, %right.size if !fake && %right.is_a? Present
                 {% end %}
 
                 %left
@@ -440,12 +448,18 @@ module Grammar
             {% if args.size >= 1 %}
               if !%results.is_a? Error
                 if %results.is_a? Array(Node)
-                  %index = %results[0].index
-                  %size = %results[-1].index + %results[-1].size - %index
-
-                  limit %index, %size
-
                   %results.reject! &.is_a?(Present)
+
+                  if !%results.empty?
+                    %index = %results[0].index
+                    %size = 0
+
+                    %results.map(&.size).each { |e| %size += e }
+
+                    limit %index, %size
+                  end
+
+                  %limit = limit
 
                   {{ klass }}.new(
                     {% if args.size > 1 %}
@@ -460,7 +474,7 @@ module Grammar
                       %results
                     {% end %}
 
-                    , %index, %size
+                    , %limit[0], %limit[1]
                   )
                 else
                   {% if args.size == 1 %}
@@ -473,6 +487,8 @@ module Grammar
                   {% end %}
                 end
               else
+                limit
+
                 %results
               end
             {% else %}
@@ -486,6 +502,8 @@ module Grammar
                   {{ klass }}.new %limit[0], %limit[1]
                 end
               else
+                limit
+
                 %results
               end
             {% end %}
