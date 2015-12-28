@@ -4,6 +4,8 @@ require "./ast/*"
 class Parser
   include Grammar
 
+  getter :fake
+
   def initialize(@stream)
     @progress = true
     @fake = false
@@ -47,17 +49,19 @@ class Parser
   end
 
   def fake(&rule)
-    @fake = true
+    nested = @fake
+
+    @fake = true unless nested
 
     result = rule.call
 
-    @fake = false
+    @fake = false unless nested
 
     result
   end
 
-  def try(string)
-    @fake || @stream.matches? string, @progress
+  def try(terminal)
+    @fake || @stream.matches? terminal, @progress
   end
 
   def parse

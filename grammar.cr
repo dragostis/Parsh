@@ -215,6 +215,7 @@ module Grammar
       {% end %}
 
       break if {{ maximum }} != 0 && %times == {{ maximum }}
+      break if fake && %times >= {{ minimum }}
 
       %current = {{ rule }}
     end
