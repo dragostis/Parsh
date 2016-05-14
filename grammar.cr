@@ -49,7 +49,11 @@ module Grammar
       {% if quiet %}
         unexpected %index, %size
       {% elsif atom == nil %}
-        Absent.new {{ terminal.stringify }}, %index, %size
+        {% if terminal.is_a? StringLiteral %}
+          Absent.new "\"" + {{ terminal }} + "\"", %index, %size
+        {% else %}
+          Absent.new {{ terminal.stringify }}, %index, %size
+        {% end %}
       {% else %}
         Absent.new {{ atom }}, %index, %size
       {% end %}
@@ -562,7 +566,7 @@ module Grammar
             {% captures << last.args[0] %}
           {% elsif last.name =~ postfix %}
             {% captures << last.receiver %}
-          {% else %}
+          {% elsif !(last.name =~ /^eoi/) %}
             {% name_cap = (last.name + "_cap").symbolize %}
 
             {% if !used.includes?(name_cap) %}
@@ -593,7 +597,7 @@ module Grammar
           {% else %}
             {% current << last.receiver %}
           {% end %}
-        {% else %}
+        {% elsif !(last.name =~ /^eoi/) %}
           {% if !used.includes?(last.name.symbolize) %}
             {% used << last.name.symbolize %}
             {% current << rules[last.name.symbolize] %}

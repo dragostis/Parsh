@@ -39,7 +39,7 @@ def captures(string, capture)
   result.should eq capture
 end
 
-macro fails(string, error = nil)
+macro fails_json(string, error = nil)
   %parser = JSONParser.new StringStream.new {{ string }}
 
   %result = %parser.parse
@@ -53,7 +53,7 @@ end
 
 describe "JSON parser" do
   it "fails on empty string" do
-    fails ""
+    fails_json ""
   end
 
   it "captures null" do
@@ -163,5 +163,21 @@ describe "JSON parser" do
         10, 12
       )
     ], 0, 23
+  end
+
+  it "fails on open string" do
+    fails_json "\"a", Absent.new "\"\"\"", 2, 1
+  end
+
+  it "fails on character after number" do
+    fails_json "3g", Absent.new "end of input", 1, 1
+  end
+
+  it "fails on open array" do
+    fails_json "[3", Absent.new "\"]\"", 2, 1
+  end
+
+  it "fails on open object" do
+    fails_json "{\"a\":3", Absent.new "\"}\"", 6, 1
   end
 end

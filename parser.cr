@@ -64,6 +64,26 @@ class Parser
     @fake || @stream.matches? terminal, @progress
   end
 
+  def eoi
+    index = @stream.size - stream_index
+
+    if @stream.empty?
+      Present.new index, 0
+    else
+      Absent.new "end of input", index, 0
+    end
+  end
+
+  def eoi_cap
+    index = @stream.size - stream_index
+
+    if @stream.empty?
+      Present.new index, 0
+    else
+      Absent.new "end of input", index, 0
+    end
+  end
+
   def parse
     current = root
 
@@ -71,7 +91,13 @@ class Parser
       current
     else
       index = stream_index
-      Absent.new "end of input", index, @stream.size - index
+      eoi = Absent.new "end of input", index, @stream.size - index
+
+      if current.is_a? Error
+        current | eoi
+      else
+        eoi
+      end
     end
   end
 end

@@ -453,7 +453,7 @@ describe "Grammar" do
         fails :absent_not_processed, "c"
       end
 
-      it "failes absent choices" do
+      it "fails absent choices" do
         fails :absent_choice, "a", Absent.new ["\"b\""], 0, 1
       end
 
